@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: cayamanan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cayamanan
+      POSTGRES_PASSWORD: cayamanan
+      POSTGRES_DB: cayamanan
+    ports:
+      - "5432:5432"
+    volumes:
+      - cayamanan-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cayamanan -d cayamanan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: cayamanan-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cayamanan-postgres-data:

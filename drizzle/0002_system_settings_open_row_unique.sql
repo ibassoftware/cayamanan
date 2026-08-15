@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "system_settings_open_row_uidx" ON "system_settings" USING btree ("tenant_id","company_id","key") WHERE "system_settings"."effective_to" is null;

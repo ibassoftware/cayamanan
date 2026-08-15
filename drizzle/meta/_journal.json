@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786827420695,
+      "tag": "0000_freezing_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786827428866,
+      "tag": "0001_enable_rls_and_app_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786829191695,
+      "tag": "0002_system_settings_open_row_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786831255522,
+      "tag": "0003_company_isolation_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786832545530,
+      "tag": "0004_identity_auth",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "designSystemId": "307dc342-d937-4dbc-94e5-8aad7367766b",
+  "installScope": "project",
+  "packageId": "3e72a917-beac-4fe0-93f6-bfea5e4dfad1",
+  "skillFolderName": "typeui-design-system",
+  "slug": "terracotta-design-system",
+  "source": "workspace",
+  "templateSlug": "terracotta",
+  "type": "typeui-design-system",
+  "variant": "workspace",
+  "workspaceId": "bfb4997b-48b3-411f-880d-8d9b789eea0b"
+}

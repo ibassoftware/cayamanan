@@ -1,26 +1,426 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ---------------------------------------------------------------------------
+   DARK MODE IS DISABLED (product decision).
+
+   Terracotta is a warm-cream light system. This project ships light only.
+   The `dark` variant is redefined here to a selector that is never present in
+   the DOM, so any stray `dark:` utility left in a vendored component stays
+   inert. Removing this line entirely would be WORSE: Tailwind v4 would fall
+   back to its built-in `@media (prefers-color-scheme: dark)` behaviour and
+   those utilities would light up on an OS-level dark preference.
+   `color-scheme: light` below pins browser-rendered chrome (scrollbars, form
+   controls, autofill) to light as well.
+--------------------------------------------------------------------------- */
+@custom-variant dark (&:where([data-theme="dark"] *));
 
 @theme inline {
+  /* Fonts — DM Serif Display for headings, DM Sans for body/UI (typography.md) */
+  --font-sans: var(--font-dm-sans);
+  --font-heading: var(--font-dm-serif);
+  --font-mono: var(--font-geist-mono);
+
+  /* Semantic surface + text roles */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Terracotta palette exposed as Tailwind colors */
+  --color-surface: var(--tc-neutral-primary);
+  --color-brand: var(--tc-brand);
+  --color-brand-soft: var(--tc-brand-soft);
+  --color-brand-softer: var(--tc-brand-softer);
+  --color-brand-strong: var(--tc-brand-strong);
+  --color-heading: var(--tc-heading);
+  --color-body: var(--tc-body);
+  --color-body-subtle: var(--tc-body-subtle);
+  --color-success-soft: var(--tc-success-soft);
+  --color-fg-success: var(--tc-fg-success);
+  --color-danger-soft: var(--tc-danger-soft);
+  --color-fg-danger: var(--tc-fg-danger);
+  --color-warning-soft: var(--tc-warning-soft);
+  --color-fg-warning: var(--tc-fg-warning);
+  --color-border-control: var(--tc-border-control);
+
+  /* Radius — Terracotta scale ONLY: 4 / 8 / 16 / full (radius.md).
+     Larger Tailwind steps are clamped to the 16px base so no off-scale
+     radius can enter the product. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 1rem;
+
+  /* Shadows — warm brown-tinted elevation (shadows.md) */
+  --shadow-2xs: 0 1px rgb(43 29 20 / 0.04);
+  --shadow-xs: 0 1px 2px 0 rgb(43 29 20 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(43 29 20 / 0.08), 0 1px 2px -1px rgb(43 29 20 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(43 29 20 / 0.08), 0 2px 4px -2px rgb(43 29 20 / 0.06);
+  --shadow-lg: 0 10px 20px -4px rgb(43 29 20 / 0.10), 0 4px 8px -4px rgb(43 29 20 / 0.06);
+  --shadow-xl: 0 20px 30px -8px rgb(43 29 20 / 0.12), 0 8px 12px -6px rgb(43 29 20 / 0.08);
+  --shadow-2xl: 0 28px 56px -16px rgb(43 29 20 / 0.22);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  color-scheme: light;
+
+  /* =========================================================================
+     TERRACOTTA TOKENS — light values from colors.md.
+     Four tokens are deepened along their OWN hue/saturation axis because the
+     published light value fails a WCAG floor. Per the fundamentals contract,
+     accessibility guardrails override design-skill style direction, and the
+     fix must stay inside the same colour family (accessibility.md §16).
+     Each override records the measured ratio.
+     ========================================================================= */
+
+  /* --- Neutral (surfaces) --- */
+  --tc-neutral-primary: #fbf4e7;         /* page surface — one surface, no alternating */
+  --tc-neutral-primary-medium: #f3e8d8;
+  --tc-neutral-primary-strong: #eaddc6;
+  --tc-neutral-tertiary: #f3e8d8;        /* card / control cream */
+  --tc-neutral-tertiary-medium: #e2d9c8; /* hover surface */
+  --tc-neutral-quaternary: #e2d9c8;
+  --tc-quaternary-medium: #c8b89e;
+  --tc-gray: #a89378;
+
+  /* --- Brand (terracotta — the single accent) --- */
+  --tc-brand-softer: #fbede3;
+  --tc-brand-soft: #f4d5bf;
+  --tc-brand: #c56a3c;
+  --tc-brand-medium: #e89971;
+  --tc-brand-strong: #9c4f25;
+  /* A11Y OVERRIDE: published `brand` #C56A3C carries white at only 3.82:1.
+     Deepened along the same hue to #B15F35 -> white 4.61:1 (AA normal text).
+     Used as the light stop of the primary-button gradient. */
+  --tc-brand-accessible: #b15f35;
+
+  /* --- Status --- */
+  --tc-success-soft: #eef3e0;
+  --tc-success: #6b8b3f;
+  --tc-fg-success: #4a6128;
+  --tc-border-success-subtle: #c5d89e;
+  --tc-danger-soft: #fbe8e0;
+  --tc-danger: #b83a1f;
+  --tc-fg-danger: #8b2812;
+  --tc-border-danger-subtle: #f0bfa8;
+  --tc-warning-soft: #fbefd8;
+  --tc-warning: #d49032;
+  --tc-fg-warning: #6b4a18;
+  --tc-border-warning-subtle: #f0cb8e;
+
+  /* --- Text --- */
+  --tc-heading: #2b1d14;
+  --tc-body: #5c4938;
+  /* A11Y OVERRIDE: published `body-subtle` #8B6F5B is 4.24:1 on the surface and
+     3.84:1 on the card cream — both below the 4.5:1 floor, and this token is
+     used for placeholder + metadata, which are real text. Deepened along the
+     same hue to #7C6351 -> 5.10:1 surface / 4.61:1 card. */
+  --tc-body-subtle: #7c6351;
+  --tc-white: #ffffff;
+  --tc-dark: #2b1d14;
+  --tc-dark-strong: #18110b;
+  --tc-disabled: #eaddc6;
+  /* A11Y OVERRIDE: published `fg-disabled` #A89378 is 2.20:1 on the disabled
+     fill — a disabled control nobody can perceive is a missing feature
+     (accessibility.md §0.6). Deepened to #8F785C -> 3.13:1. */
+  --tc-fg-disabled: #8f785c;
+
+  /* --- Borders --- */
+  /* Soft parchment outline — decorative separators and dividers only. */
+  --tc-border-default: #e2d9c8;
+  /* A11Y OVERRIDE: the identifying boundary of an interactive control needs
+     3:1 (WCAG 1.4.11). #E2D9C8 gives 1.28:1 on the surface, and the control
+     fill (#F3E8D8) is only 1.11:1 from the page — so the border is the ONLY
+     thing identifying the field. Deepened along the same warm-parchment hue
+     to #998051 -> 3.45:1 vs surface, 3.12:1 vs its own fill. */
+  --tc-border-control: #998051;
+  --tc-border-brand: #c56a3c;
+  /* Focus indicator — brand-strong reaches 3:1 against every surface it can
+     land on (5.39:1 surface / 4.87:1 card / 4.21:1 hover cream). */
+  --tc-focus: #9c4f25;
+
+  /* --- Button glint (buttons.md) --- */
+  --tc-glint-highlight: rgb(255 244 231 / 0.30);
+  --tc-glint-glow: rgb(43 29 20 / 0.18);
+
+  /* =========================================================================
+     SEMANTIC LAYER — the vendored shadcn/ai-elements components consume these.
+     Every value derives from a Terracotta token above; nothing is hardcoded.
+     ========================================================================= */
+  --background: var(--tc-neutral-primary);
+  --foreground: var(--tc-body);
+  --card: var(--tc-neutral-tertiary);
+  --card-foreground: var(--tc-body);
+  --popover: var(--tc-neutral-tertiary);
+  --popover-foreground: var(--tc-body);
+  --primary: var(--tc-brand-accessible);
+  --primary-foreground: var(--tc-white);
+  --secondary: var(--tc-neutral-tertiary);
+  --secondary-foreground: var(--tc-heading);
+  --muted: var(--tc-neutral-tertiary);
+  --muted-foreground: var(--tc-body-subtle);
+  --accent: var(--tc-neutral-tertiary-medium);
+  --accent-foreground: var(--tc-heading);
+  --destructive: var(--tc-fg-danger);
+  --border: var(--tc-border-default);
+  --input: var(--tc-border-control);
+  --ring: var(--tc-focus);
+  --radius: 1rem;
+
+  --chart-1: var(--tc-brand);
+  --chart-2: var(--tc-success);
+  --chart-3: var(--tc-warning);
+  --chart-4: var(--tc-gray);
+  --chart-5: var(--tc-brand-strong);
+
+  --sidebar: var(--tc-neutral-tertiary);
+  --sidebar-foreground: var(--tc-body);
+  --sidebar-primary: var(--tc-brand-accessible);
+  --sidebar-primary-foreground: var(--tc-white);
+  --sidebar-accent: var(--tc-brand-softer);
+  --sidebar-accent-foreground: var(--tc-brand-strong);
+  --sidebar-border: var(--tc-border-default);
+  --sidebar-ring: var(--tc-focus);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+    /* rem-based type so browser font-size preference and 200% zoom work */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Terracotta normal paragraph: 17px / 1.7 (typography.md) */
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* --- Headings: DM Serif Display, regular 400, ink brown (typography.md).
+     Mobile-first, scaling up at the tablet and desktop breakpoints. --- */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    color: var(--tc-heading);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: 2.25rem; /* 36px */
+    line-height: 1.05;
+    letter-spacing: -0.9px;
+    margin-bottom: 2rem; /* 32px — fundamentals display-heading rule */
+  }
+  h2 {
+    font-size: 1.875rem; /* 30px */
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+    margin-bottom: 2rem; /* 32px */
+  }
+  h3 {
+    font-size: 1.625rem; /* 26px */
+    line-height: 1.2;
+    letter-spacing: -0.3px;
+  }
+  h4 {
+    font-size: 1.375rem; /* 22px */
+    line-height: 1.25;
+    letter-spacing: -0.2px;
+  }
+  h5 {
+    font-size: 1.25rem; /* 20px */
+    line-height: 1.3;
+  }
+  h6 {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.35;
+  }
+
+  @media (min-width: 768px) {
+    h1 { font-size: 2.75rem; }  /* 44px */
+    h2 { font-size: 2.25rem; }  /* 36px */
+    h3 { font-size: 1.875rem; } /* 30px */
+    h4 { font-size: 1.625rem; } /* 26px */
+    h5 { font-size: 1.375rem; } /* 22px */
+  }
+
+  @media (min-width: 1024px) {
+    h1 { font-size: 3.75rem; }  /* 60px */
+    h2 { font-size: 2.75rem; }  /* 44px */
+    h3 { font-size: 2.25rem; }  /* 36px */
+    h4 { font-size: 1.875rem; } /* 30px */
+    h5 { font-size: 1.5rem; }   /* 24px */
+    h6 { font-size: 1.25rem; }  /* 20px */
+  }
+
+  /* Paragraph rhythm: gap between paragraphs ~= the body font size
+     (spacing-principles §3.4). Headings own the space below them via their own
+     margin-bottom, so paragraphs never carry a top margin. */
+  p {
+    margin-bottom: 1rem;
+  }
+  p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* --- Links (accessibility.md §4.4) ---
+     Inline content links underline at rest; navigation / footer / header /
+     button-role links never do. */
+  p a,
+  li a,
+  td a {
+    color: var(--tc-brand-strong); /* 5.39:1 on surface */
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  p a:hover,
+  li a:hover,
+  td a:hover {
+    text-decoration: none;
+  }
+  nav a,
+  header a,
+  footer a,
+  [data-slot="button"] {
+    text-decoration: none;
+  }
+
+  /* --- Focus: instant, 2px, 2px offset, brand-strong (>=3:1 everywhere).
+     Applied where a component has not defined its own compliant ring. --- */
+  :focus-visible {
+    outline: 2px solid var(--tc-focus);
+    outline-offset: 2px;
+    transition: none;
+  }
+
+  /* --- Reduced motion: keep every state perceivable, drop the movement --- */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Application-surface page title.
+     ui-principles.md §0.1 caps dashboard/app page titles at 28px — the
+     Terracotta display scale (60px) is for marketing/editorial surfaces only. */
+  .tc-app-title {
+    font-size: 1.5rem; /* 24px */
+    line-height: 1.2;
+    letter-spacing: -0.2px;
+    margin-bottom: 0;
+  }
+  @media (min-width: 768px) {
+    .tc-app-title {
+      font-size: 1.75rem; /* 28px — the cap */
+    }
+  }
+
+  /* Reading measure for long-form assistant output: 45–75 characters. */
+  .tc-measure {
+    max-width: 68ch;
+  }
+
+  /* Primary action surface — terracotta gradient + glint (buttons.md).
+     The light stop is the a11y-adjusted brand so white labels clear 4.5:1. */
+  .tc-btn-brand {
+    background-image: linear-gradient(
+      to bottom right,
+      var(--tc-brand-accessible),
+      var(--tc-brand-strong)
+    );
+    color: var(--tc-white);
+    border-color: transparent;
+    box-shadow:
+      var(--shadow-xs),
+      inset var(--tc-glint-highlight) 0 6px 0px -5px,
+      var(--tc-glint-glow) 0 4px 10px -5px;
+  }
+  .tc-btn-brand:hover {
+    background-image: linear-gradient(
+      to bottom right,
+      var(--tc-brand-strong),
+      var(--tc-brand-strong)
+    );
+  }
+  .tc-btn-brand:disabled {
+    background-image: none;
+    background-color: var(--tc-disabled);
+    color: var(--tc-fg-disabled);
+    border-color: var(--tc-border-control);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Composite-control states — intentionally UNLAYERED.
+
+   The prompt field is one control made of a wrapper plus an inner textarea:
+   the wrapper owns the focus indicator and the inner control suppresses its
+   own, so the ring is drawn once around the whole group rather than twice.
+
+   These rules must sit outside @layer: `border-input` and `shadow-xs` are
+   Tailwind utilities, and the utilities layer out-ranks @layer base no matter
+   how specific the base selector is. Unlayered declarations win over every
+   layer, which is what makes the focus ring actually paint.
+
+   Keyed off [data-slot=input-group-control] rather than a bare :disabled so a
+   disabled sibling (the submit button) cannot grey out the whole field.
+--------------------------------------------------------------------------- */
+[data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible) {
+  border-color: var(--tc-focus);
+  box-shadow: 0 0 0 2px var(--tc-focus);
+  /* The wrapper carries `transition-colors`, which would fade the indicator in
+     over 150ms. Focus must appear instantly (accessibility.md §5.2). */
+  transition: none;
+}
+
+[data-slot="input-group"]:has([data-slot="input-group-control"]:disabled) {
+  background-color: var(--tc-disabled);
+}
+
+/* Focus indicators must appear instantly — never animated (accessibility.md
+   §5.2). Components carry `transition-all` / `transition-colors` utilities,
+   and the utilities layer beats @layer base, so this has to be unlayered to
+   win. Without it the ring fades in from the browser default (3px medium) and
+   is the wrong width and colour for the first ~150ms of every tab stop. */
+:focus-visible {
+  transition-property: none;
 }
