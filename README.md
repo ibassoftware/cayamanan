@@ -34,7 +34,9 @@ An LLM does not get to decide what lands in someone's payslip.
 
 ## Status
 
-**Pre-release.** Not yet suitable for running a real payroll.
+**Usable today for employee records.** If you keep your 201 files in spreadsheets, you can move them into
+Cayamanan now — import them, keep them, and let Missy work on them. Recruitment is next. The table below
+is the honest state of everything else, so you can judge for yourself what to adopt and when.
 
 | Area | State |
 |---|---|
@@ -44,31 +46,32 @@ An LLM does not get to decide what lands in someone's payslip.
 | Organization: departments, positions, locations, cost centers | Done |
 | Employee 201 file — personal, government IDs, family, background, onboarding, documents | Done |
 | Bulk import — CSV/TSV/xlsx with AI-assisted column mapping | Done |
-| Employment, contracts & compensation | In progress |
+| Recruitment & ATS | Next |
+| Employment, contracts & compensation | Not started |
 | Payroll engine | Not started |
 
 ## Roadmap
 
-Sequenced by dependency, not by preference — attendance needs contracts, payroll needs attendance, and
-nothing statutory can be guessed at.
-
 **Milestone 1 — People of record** *(largely complete)*
-Organization structure, the full 201 file, employee documents, bulk import, and Missy able to operate on
-all of it.
+Organization structure, the full 201 file, employee documents, bulk import from CSV and Excel, and Missy
+able to operate on all of it.
 
-**Milestone 2 — Employment & compensation**
+**Milestone 2 — Recruitment & ATS**
+Job requisitions and approvals, a careers page, the applicant pipeline, résumé parsing and candidate
+search, interview scheduling and scorecards, and offer management — ending in a one-click hand-off from
+accepted offer to 201 file with nothing retyped. Hiring is where a company's HR data is created, so this
+is where the record should start.
+
+**Milestone 3 — Employment & compensation**
 Effective-dated contracts, pay basis and rates, allowances and recurring deductions, statutory enrolment,
 bank details, termination. Nothing is ever overwritten; a salary change closes one row and opens another.
+This is also the prerequisite payroll cannot start without.
 
-**Milestone 3 — Payroll**
+**Milestone 4 — Payroll**
 The core. Holiday and schedule calendars, attendance import, versioned statutory tables (SSS, PhilHealth,
 Pag-IBIG, BIR), the deterministic calculation engine, the run lifecycle from draft to finalized, payslips,
 13th month, final pay, and statutory reports. A finalized run must recompute to the identical centavo
 forever — that is a correctness requirement, not an aspiration.
-
-**Milestone 4 — Recruitment & ATS**
-Job requisitions, applicant pipeline, interview scheduling and scorecards, offer management, and a clean
-hand-off from accepted offer to 201 file with nothing retyped.
 
 **Milestone 5 — Beyond**
 Leave management, benefits administration, performance, and employee self-service.
