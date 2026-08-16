@@ -57,6 +57,22 @@ export const createLocationAction = defineAction({
           updatedBy: ctx.userId,
         })
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card. `before` is explicitly empty —
+      // a create has no prior state — and `after` carries only the fields this call
+      // actually supplied.
+      ctx.audit({
+        entityType: 'location',
+        entityId: created.id,
+        before: {},
+        after: {
+          code: created.code,
+          name: created.name,
+          ...(input.address !== undefined ? { address: created.address } : {}),
+          ...(input.timezone !== undefined ? { timezone: created.timezone } : {}),
+        },
+      });
+
       return {
         id: created.id,
         code: created.code,

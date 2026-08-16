@@ -21,7 +21,7 @@ import { executeAction, type VerifiedSession } from '@/platform/actions';
 import { SESSION_COOKIE_NAME } from '@/modules/identity/service/cookie';
 import { resolveSessionFromCookie } from '@/modules/identity/service/session';
 import { getOwnedThread, touchThread } from '@/modules/ai/service/threads';
-import { MISSY_MODEL_SETTINGS, MISSY_PROVIDER_OPTIONS, type MissyRequestContext } from '@/mastra/agents/missy-agent';
+import { MISSY_PROVIDER_OPTIONS, resolveMissyModelSettings, type MissyRequestContext } from '@/mastra/agents/missy-agent';
 
 const AGENT_ID = 'missy';
 
@@ -111,8 +111,11 @@ export async function POST(request: NextRequest) {
     defaultOptions: {
       requestContext: buildRequestContext(session, threadId),
       // Reasoning effort and summary are execution options in Mastra, not Agent config —
-      // see MISSY_MODEL_SETTINGS / MISSY_PROVIDER_OPTIONS for what each one buys.
-      modelSettings: MISSY_MODEL_SETTINGS,
+      // see resolveMissyModelSettings / MISSY_PROVIDER_OPTIONS for what each one buys.
+      // Effort is resolved per request from this request's own message array (the
+      // deterministic heuristic in src/mastra/agents/reasoning-effort.ts) — never a second
+      // model call to decide the first one's effort.
+      modelSettings: resolveMissyModelSettings(Array.isArray(rest.messages) ? rest.messages : []),
       providerOptions: MISSY_PROVIDER_OPTIONS,
     },
   });

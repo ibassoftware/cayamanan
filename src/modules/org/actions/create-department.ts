@@ -70,6 +70,23 @@ export const createDepartmentAction = defineAction({
           updatedBy: ctx.userId,
         })
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card (CLAUDE.md's audit list is a
+      // floor, not a ceiling — department names reach payslips/statutory reports, and
+      // slice 05 attaches effective-dated employment records to them). `before` is
+      // explicitly empty — a create has no prior state — and `after` carries only the
+      // fields this call actually supplied.
+      ctx.audit({
+        entityType: 'department',
+        entityId: created.id,
+        before: {},
+        after: {
+          code: created.code,
+          name: created.name,
+          ...(input.parentId !== undefined ? { parentId: created.parentId } : {}),
+        },
+      });
+
       return {
         id: created.id,
         code: created.code,

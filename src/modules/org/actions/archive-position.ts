@@ -18,7 +18,7 @@ export const archivePositionAction = defineAction({
   toolDescription: 'Archive (soft-delete) a position.',
   async handler(input, ctx) {
     const [existing] = await ctx.db
-      .select({ id: positions.id })
+      .select({ id: positions.id, isActive: positions.isActive })
       .from(positions)
       .where(and(eq(positions.id, input.id), eq(positions.tenantId, ctx.tenantId), eq(positions.companyId, ctx.companyId)))
       .limit(1);
@@ -30,6 +30,14 @@ export const archivePositionAction = defineAction({
       .update(positions)
       .set({ isActive: false, updatedAt: ctx.now, updatedBy: ctx.userId })
       .where(eq(positions.id, existing.id));
+
+    // Ordinary risk: a trail, not a confirmation card.
+    ctx.audit({
+      entityType: 'position',
+      entityId: existing.id,
+      before: { isActive: existing.isActive },
+      after: { isActive: false },
+    });
 
     return { id: existing.id, isActive: false };
   },

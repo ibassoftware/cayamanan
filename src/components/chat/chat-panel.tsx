@@ -8,7 +8,7 @@
 // a full-screen sheet, escaping normal document flow entirely.
 import { AlertTriangleIcon, MessageCircleIcon, XIcon } from "lucide-react"
 import type { ChatStatus } from "ai"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import {
   Conversation,
@@ -28,20 +28,52 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import { deriveAnnouncement, extractMessageText } from "@/lib/chat/announcer"
 import { ChatMessage } from "@/components/chat/chat-message"
+import { ChatResizeHandle } from "@/components/chat/chat-resize-handle"
 import { ThreadList } from "@/components/chat/thread-list"
 import { useMissyChat } from "@/components/chat/chat-provider"
+import { DEFAULT_PANEL_WIDTH, getPersistedPanelWidth, setPersistedPanelWidth, type SimpleStorage } from "@/lib/chat/panel-width"
+
+function browserStorage(): SimpleStorage | null {
+  if (typeof window === "undefined") return null
+  return window.localStorage
+}
 
 export function ChatPanel() {
   const { collapsed, setCollapsed } = useMissyChat()
+  // Starts at the previous fixed width so server + first client render match (no
+  // localStorage during SSR); the effect below then restores whatever was persisted.
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
+
+  // On mount only: reopen the persisted width, past a microtask boundary so no state
+  // setter fires synchronously within the effect itself (same pattern as the thread-id
+  // restore in chat-provider.tsx).
+  useEffect(() => {
+    let cancelled = false
+    void Promise.resolve().then(() => {
+      if (cancelled) return
+      const storage = browserStorage()
+      if (storage) setPanelWidth(getPersistedPanelWidth(storage))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleWidthChange = useCallback((next: number) => {
+    setPanelWidth(next)
+    const storage = browserStorage()
+    if (storage) setPersistedPanelWidth(storage, next)
+  }, [])
 
   return (
     <>
       <aside
         aria-label="Missy assistant"
         className={cn(
-          "hidden shrink-0 flex-col border-border border-l bg-card lg:flex",
-          collapsed ? "lg:w-14" : "lg:w-96",
+          "hidden shrink-0 bg-card lg:flex",
+          collapsed ? "flex-col border-border border-l lg:w-14" : "flex-row",
         )}
+        style={collapsed ? undefined : { width: panelWidth }}
         onKeyDown={(event) => {
           if (event.key === "Escape") setCollapsed(true)
         }}
@@ -53,7 +85,12 @@ export function ChatPanel() {
             </Button>
           </div>
         ) : (
-          <ChatPanelContent onCollapse={() => setCollapsed(true)} />
+          <>
+            <ChatResizeHandle width={panelWidth} onWidthChange={handleWidthChange} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <ChatPanelContent onCollapse={() => setCollapsed(true)} />
+            </div>
+          </>
         )}
       </aside>
 

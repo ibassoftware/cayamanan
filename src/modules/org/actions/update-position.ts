@@ -53,6 +53,17 @@ export const updatePositionAction = defineAction({
         })
         .where(eq(positions.id, existing.id))
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card. Only the fields this call
+      // actually supplied (see update-government-ids.ts).
+      const suppliedFields = (['code', 'title', 'isActive'] as const).filter((field) => input[field] !== undefined);
+      ctx.audit({
+        entityType: 'position',
+        entityId: updated.id,
+        before: Object.fromEntries(suppliedFields.map((field) => [field, existing[field]])),
+        after: Object.fromEntries(suppliedFields.map((field) => [field, updated[field]])),
+      });
+
       return { id: updated.id, code: updated.code, title: updated.title, isActive: updated.isActive };
     } catch (error) {
       if (isDuplicateCode(error)) {

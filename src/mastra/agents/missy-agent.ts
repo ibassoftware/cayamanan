@@ -4,6 +4,14 @@ import { Memory } from '@mastra/memory';
 import type { VerifiedSession } from '@/platform/actions';
 import { buildActionTools } from '../tools/action-tool-bridge';
 import { reasoningReplayGuard } from '../processors/reasoning-replay-guard';
+import {
+  DEFAULT_REASONING_EFFORT_CEILING,
+  extractReasoningEffortSignals,
+  isReasoningEffort,
+  resolveMissyReasoningEffort,
+  type LooseMessage,
+  type ReasoningEffort,
+} from './reasoning-effort';
 
 // Missy's system prompt encodes the guardrails CLAUDE.md requires of every AI surface in
 // this codebase — most importantly "deterministic software is authoritative for all
@@ -56,21 +64,62 @@ const MISSY_MODEL = 'openai/gpt-5.6-luna';
  * and narrate the result faithfully — the deterministic engine does the actual work, and
  * CLAUDE.md forbids her from computing payroll amounts at all. Extra reasoning tokens buy
  * very little on a "list the positions" or "create this department" turn, and cost latency
- * on every one of them. Raise it if she starts choosing tools badly, not pre-emptively.
+ * on every one of them.
+ *
+ * What varies per request is *whether* a turn is one of those simple ones — reasoning
+ * effort is a parameter the request has to carry before the model runs, so nothing in the
+ * model itself can pick its own effort for the turn it's about to take. `resolveMissyModelSettings`
+ * below is the deterministic stand-in: a cheap heuristic over the message already in hand
+ * (see reasoning-effort.ts for the rule set), never a second model call to classify the
+ * first one.
+ *
+ * `MISSY_REASONING_EFFORT` is an operator escape hatch: set it to pin every request to one
+ * level and disable the heuristic outright (e.g. to reproduce an incident, or if the
+ * heuristic ever mis-fires in a way that matters more than the token cost of a fixed
+ * level). `MISSY_REASONING_EFFORT_CEILING` instead caps how high the heuristic may
+ * escalate on its own, while leaving it free to run below that.
  */
-const MISSY_REASONING_EFFORT = (process.env.MISSY_REASONING_EFFORT ??
-  'low') as 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+function readReasoningEffortOverride(): ReasoningEffort | undefined {
+  const raw = process.env.MISSY_REASONING_EFFORT;
+  if (!raw) return undefined;
+  if (!isReasoningEffort(raw)) {
+    console.warn(`[missy] ignoring invalid MISSY_REASONING_EFFORT="${raw}" — using the adaptive heuristic instead`);
+    return undefined;
+  }
+  return raw;
+}
+
+function readReasoningEffortCeiling(): ReasoningEffort {
+  const raw = process.env.MISSY_REASONING_EFFORT_CEILING;
+  if (!raw) return DEFAULT_REASONING_EFFORT_CEILING;
+  if (!isReasoningEffort(raw)) {
+    console.warn(
+      `[missy] ignoring invalid MISSY_REASONING_EFFORT_CEILING="${raw}" — falling back to "${DEFAULT_REASONING_EFFORT_CEILING}"`,
+    );
+    return DEFAULT_REASONING_EFFORT_CEILING;
+  }
+  return raw;
+}
 
 /**
- * Applied per request by the chat route (`defaultOptions`) — Mastra takes these on the
- * execution call, not on the Agent constructor.
- *
- * `reasoning` is Mastra's provider-agnostic effort level, so it survives a provider swap.
+ * Called once per request by the chat route with that request's own message array —
+ * never cached, since an override can be flipped between requests without a redeploy and
+ * the heuristic itself is a pure function of the turn just sent.
+ */
+export function resolveMissyModelSettings(messages: LooseMessage[]): { reasoning: ReasoningEffort } {
+  const override = readReasoningEffortOverride();
+  if (override) return { reasoning: override };
+
+  const signals = extractReasoningEffortSignals(messages);
+  return { reasoning: resolveMissyReasoningEffort(signals, readReasoningEffortCeiling()) };
+}
+
+/**
  * `reasoningSummary: 'auto'` is OpenAI-specific and asks for a readable summary of the
  * thinking: without it, reasoning parts arrive with an empty text body and only
- * `reasoningEncryptedContent`, leaving the UI nothing it could ever display.
+ * `reasoningEncryptedContent`, leaving the UI nothing it could ever display. Static:
+ * unlike effort, the summary setting doesn't depend on the turn's content.
  */
-export const MISSY_MODEL_SETTINGS = { reasoning: MISSY_REASONING_EFFORT } as const;
 export const MISSY_PROVIDER_OPTIONS = { openai: { reasoningSummary: 'auto' } } as const;
 
 export const missyAgent = new Agent({

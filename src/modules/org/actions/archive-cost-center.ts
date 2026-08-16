@@ -18,7 +18,7 @@ export const archiveCostCenterAction = defineAction({
   toolDescription: 'Archive (soft-delete) a cost center.',
   async handler(input, ctx) {
     const [existing] = await ctx.db
-      .select({ id: costCenters.id })
+      .select({ id: costCenters.id, isActive: costCenters.isActive })
       .from(costCenters)
       .where(and(eq(costCenters.id, input.id), eq(costCenters.tenantId, ctx.tenantId), eq(costCenters.companyId, ctx.companyId)))
       .limit(1);
@@ -30,6 +30,14 @@ export const archiveCostCenterAction = defineAction({
       .update(costCenters)
       .set({ isActive: false, updatedAt: ctx.now, updatedBy: ctx.userId })
       .where(eq(costCenters.id, existing.id));
+
+    // Ordinary risk: a trail, not a confirmation card.
+    ctx.audit({
+      entityType: 'cost_center',
+      entityId: existing.id,
+      before: { isActive: existing.isActive },
+      after: { isActive: false },
+    });
 
     return { id: existing.id, isActive: false };
   },

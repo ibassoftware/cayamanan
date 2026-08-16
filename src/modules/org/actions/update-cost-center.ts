@@ -53,6 +53,17 @@ export const updateCostCenterAction = defineAction({
         })
         .where(eq(costCenters.id, existing.id))
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card. Only the fields this call
+      // actually supplied (see update-government-ids.ts).
+      const suppliedFields = (['code', 'name', 'isActive'] as const).filter((field) => input[field] !== undefined);
+      ctx.audit({
+        entityType: 'cost_center',
+        entityId: updated.id,
+        before: Object.fromEntries(suppliedFields.map((field) => [field, existing[field]])),
+        after: Object.fromEntries(suppliedFields.map((field) => [field, updated[field]])),
+      });
+
       return { id: updated.id, code: updated.code, name: updated.name, isActive: updated.isActive };
     } catch (error) {
       if (isDuplicateCode(error)) {

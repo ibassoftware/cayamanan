@@ -103,6 +103,19 @@ export const updateDepartmentAction = defineAction({
         await recomputeSubtreeDepths(ctx.db, ctx.tenantId, ctx.companyId, existing.id, depth);
       }
 
+      // Ordinary risk: a trail, not a confirmation card. Only the fields this call
+      // actually supplied — an omitted field is untouched, so including it would
+      // misrepresent the change as wider than it was (see update-government-ids.ts).
+      const suppliedFields = (['code', 'name', 'parentId', 'isActive'] as const).filter(
+        (field) => input[field] !== undefined,
+      );
+      ctx.audit({
+        entityType: 'department',
+        entityId: updated.id,
+        before: Object.fromEntries(suppliedFields.map((field) => [field, existing[field]])),
+        after: Object.fromEntries(suppliedFields.map((field) => [field, updated[field]])),
+      });
+
       return {
         id: updated.id,
         code: updated.code,

@@ -41,6 +41,16 @@ export const createPositionAction = defineAction({
           updatedBy: ctx.userId,
         })
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card. `before` is explicitly empty —
+      // a create has no prior state.
+      ctx.audit({
+        entityType: 'position',
+        entityId: created.id,
+        before: {},
+        after: { code: created.code, title: created.title },
+      });
+
       return { id: created.id, code: created.code, title: created.title, isActive: created.isActive };
     } catch (error) {
       if (isDuplicateCode(error)) {

@@ -41,6 +41,16 @@ export const createCostCenterAction = defineAction({
           updatedBy: ctx.userId,
         })
         .returning();
+
+      // Ordinary risk: a trail, not a confirmation card. `before` is explicitly empty —
+      // a create has no prior state.
+      ctx.audit({
+        entityType: 'cost_center',
+        entityId: created.id,
+        before: {},
+        after: { code: created.code, name: created.name },
+      });
+
       return { id: created.id, code: created.code, name: created.name, isActive: created.isActive };
     } catch (error) {
       if (isDuplicateCode(error)) {

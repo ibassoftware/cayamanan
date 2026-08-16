@@ -22,7 +22,7 @@ export const archiveDepartmentAction = defineAction({
   toolDescription: 'Archive (soft-delete) a department.',
   async handler(input, ctx) {
     const [existing] = await ctx.db
-      .select({ id: departments.id })
+      .select({ id: departments.id, isActive: departments.isActive })
       .from(departments)
       .where(and(eq(departments.id, input.id), eq(departments.tenantId, ctx.tenantId), eq(departments.companyId, ctx.companyId)))
       .limit(1);
@@ -34,6 +34,14 @@ export const archiveDepartmentAction = defineAction({
       .update(departments)
       .set({ isActive: false, updatedAt: ctx.now, updatedBy: ctx.userId })
       .where(eq(departments.id, existing.id));
+
+    // Ordinary risk: a trail, not a confirmation card.
+    ctx.audit({
+      entityType: 'department',
+      entityId: existing.id,
+      before: { isActive: existing.isActive },
+      after: { isActive: false },
+    });
 
     return { id: existing.id, isActive: false };
   },
