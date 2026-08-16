@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import '@/modules/system/actions/register';
 import '@/modules/identity/actions/register';
+import '@/modules/ai/actions/register';
+import '@/modules/ui/actions/register';
+import '@/modules/org/actions/register';
+import '@/modules/employee/actions/register';
 import { executeAction } from '@/platform/actions';
 import type { ErrorCode } from '@/platform/errors';
 import { SESSION_COOKIE_NAME } from '@/modules/identity/service/cookie';

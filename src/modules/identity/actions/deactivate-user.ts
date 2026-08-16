@@ -18,6 +18,7 @@ export const deactivateUserAction = defineAction({
   risk: 'high',
   roles: ['ADMIN'],
   scope: 'company',
+  toolExposed: false,
   async handler(input, ctx) {
     if (input.userId === ctx.userId) {
       throw new ActionError('VALIDATION_ERROR', 'You cannot deactivate your own account.');

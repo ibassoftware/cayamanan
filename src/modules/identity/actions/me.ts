@@ -24,6 +24,8 @@ export const meAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
   scope: 'self',
+  toolExposed: true,
+  toolDescription: "Look up the current user's own name, email and roles.",
   async handler(_input, ctx) {
     const [user] = await ctx.db.select().from(users).where(eq(users.id, ctx.userId ?? '')).limit(1);
     if (!user) {

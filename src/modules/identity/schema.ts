@@ -1,5 +1,13 @@
 // Drizzle tables for the `identity` domain — 02-identity-auth.md.
 //
+// `users.employee_id` (04-organization-employees.md, "lands in slice 04") links a
+// self-service account to its employee record. It deliberately has no `.references()`
+// here (would require importing `@/modules/employee/schema`, crossing the module
+// boundary — see 00-overview.md §4.1); the real FK is a plain `ALTER TABLE` in the
+// migration. Written only via `service/employee-link.ts`'s `setUserEmployeeId`, called
+// by `employee.linkUserAccount` (owned by the `employee` module, which imports this
+// file's `service/` export — allowed — not this schema.ts — not allowed).
+//
 // `users`/`user_roles`/`sessions` carry `tenant_id` but deliberately NOT `company_id`
 // as an RLS predicate (unlike the L1 "every table carries tenant_id + company_id"
 // convention default): `sessions` doesn't even have a `company_id` column (by design —
@@ -34,6 +42,9 @@ export const users = pgTable(
     status: text('status').notNull().default('ACTIVE'),
     mustChangePassword: boolean('must_change_password').notNull().default(true),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    // Nullable: most users (ADMIN/HR-only accounts) never get one; set exactly once by
+    // employee.linkUserAccount. See header comment above for why there's no `.references()`.
+    employeeId: uuid('employee_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid('created_by'),
@@ -45,6 +56,10 @@ export const users = pgTable(
     // most one row per tenant); the app always normalizes to lowercase before writing
     // or querying, so a plain unique index is enough (no functional lower() index).
     uniqueIndex('users_tenant_email_uidx').on(table.tenantId, table.email),
+    // One user per employee (Postgres treats multiple NULLs as distinct, so unlinked
+    // users are unaffected). Enforces the one-to-one self-service link at the DB layer,
+    // not just in employee.linkUserAccount's own pre-check.
+    uniqueIndex('users_employee_id_uidx').on(table.employeeId),
   ],
 );
 

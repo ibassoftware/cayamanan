@@ -23,6 +23,7 @@ export const getUserAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN'],
   scope: 'company',
+  toolExposed: false,
   async handler(input, ctx) {
     // `users` has no company_id RLS predicate (see schema.ts) — this explicit filter is
     // what keeps this scoped to the caller's company, not just their tenant.

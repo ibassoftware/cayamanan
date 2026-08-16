@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Building2, MoreHorizontal } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,12 +23,37 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+import { DataTable, type DataTableColumn } from "@/components/data/data-table"
+import {
+  filterBySearch,
+  paginateRows,
+  sortRows,
+  type ListScreenState,
+  type SortState,
+} from "@/components/data/list-state"
+import { RelationTypeahead, type RelationOption } from "@/components/data/relation-typeahead"
+import { ConfirmDialog } from "@/components/data/confirm-dialog"
+import { FormField } from "@/components/data/form/form-field"
+import { FormSection } from "@/components/data/form/form-section"
+import { FormFooter } from "@/components/data/form/form-footer"
+import { isDirty, requiredString } from "@/components/data/form/form-state"
+import type { ActionResult } from "@/platform/errors"
 
 /**
  * Dev-only design-system reference. Not linked from the main nav.
  * Demonstrates the terracotta token set, a hand-built table, a plain
- * controlled form, a static money-formatted field, and the confirmation-card
- * pattern high-risk actions will use once the action layer lands.
+ * controlled form, a static money-formatted field, the confirmation-card
+ * pattern high-risk actions use, and — the main event — the shared `src/components/data/**`
+ * primitives (DataTable, RelationTypeahead, FormField/Section/Footer, ConfirmDialog)
+ * against fixture data, so a screen can be configured from this page's examples
+ * before any domain screens exist.
  */
 
 type Swatch = {
@@ -274,9 +299,402 @@ function ConfirmationCardExample() {
   )
 }
 
+// ---------------------------------------------------------------------------
+// DataTable demo
+// ---------------------------------------------------------------------------
+
+interface DepartmentFixture {
+  id: string
+  name: string
+  code: string
+  headcount: number
+  status: "active" | "archived"
+}
+
+const DEPARTMENT_FIXTURES: DepartmentFixture[] = [
+  { id: "1", name: "Finance", code: "FIN", headcount: 12, status: "active" },
+  { id: "2", name: "Engineering", code: "ENG", headcount: 34, status: "active" },
+  { id: "3", name: "Human Resources", code: "HR", headcount: 8, status: "active" },
+  { id: "4", name: "Payroll", code: "PAY", headcount: 5, status: "active" },
+  { id: "5", name: "Sales", code: "SAL", headcount: 21, status: "active" },
+  { id: "6", name: "Marketing", code: "MKT", headcount: 9, status: "active" },
+  { id: "7", name: "Legal", code: "LEG", headcount: 3, status: "active" },
+  { id: "8", name: "Facilities", code: "FAC", headcount: 6, status: "archived" },
+  { id: "9", name: "Customer Support", code: "SUP", headcount: 17, status: "active" },
+  { id: "10", name: "IT Operations", code: "ITO", headcount: 11, status: "active" },
+  { id: "11", name: "Procurement", code: "PRC", headcount: 4, status: "archived" },
+  { id: "12", name: "Quality Assurance", code: "QA", headcount: 14, status: "active" },
+]
+
+type DataTableDemoStatus = "ready" | "loading" | "error" | "no-permission"
+
+const PAGE_SIZE = 5
+
+function getSortValue(row: DepartmentFixture, columnId: string): string | number | undefined {
+  if (columnId === "name") return row.name
+  if (columnId === "code") return row.code
+  if (columnId === "headcount") return row.headcount
+  return undefined
+}
+
+function DataTableDemo() {
+  const [demoStatus, setDemoStatus] = useState<DataTableDemoStatus>("ready")
+  const [search, setSearch] = useState("")
+  const [sort, setSort] = useState<SortState | null>(null)
+  const [page, setPage] = useState(1)
+
+  const filtered = filterBySearch(DEPARTMENT_FIXTURES, search, row => `${row.name} ${row.code}`)
+  const sorted = sortRows(filtered, sort, getSortValue)
+  const { pageRows, page: clampedPage } = paginateRows(sorted, page, PAGE_SIZE)
+
+  const state: ListScreenState<DepartmentFixture> =
+    demoStatus === "ready"
+      ? { status: "ready", items: pageRows }
+      : demoStatus === "loading"
+        ? { status: "loading" }
+        : demoStatus === "error"
+          ? { status: "error", message: "Couldn't reach the server. Check your connection and try again." }
+          : { status: "no-permission" }
+
+  const columns: DataTableColumn<DepartmentFixture>[] = [
+    { id: "name", header: "Department", cell: row => row.name, sortable: true },
+    { id: "code", header: "Code", cell: row => row.code, sortable: true },
+    {
+      id: "headcount",
+      header: "Headcount",
+      cell: row => row.headcount,
+      sortable: true,
+      align: "right",
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: row => (
+        <Badge variant={row.status === "active" ? "success" : "secondary"}>
+          {row.status === "active" ? "Active" : "Archived"}
+        </Badge>
+      ),
+    },
+  ]
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="ds-table-status" className="text-sm font-medium text-heading">
+          Demo state
+        </label>
+        <Select value={demoStatus} onValueChange={value => setDemoStatus((value ?? "ready") as DataTableDemoStatus)}>
+          <SelectTrigger id="ds-table-status" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ready">Ready</SelectItem>
+            <SelectItem value="loading">Loading</SelectItem>
+            <SelectItem value="error">Error</SelectItem>
+            <SelectItem value="no-permission">No permission</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <DataTable
+        aria-label="Departments"
+        state={state}
+        columns={columns}
+        getRowId={row => row.id}
+        onRetry={() => setDemoStatus("ready")}
+        noPermission={{ description: "Department management is restricted to Admins and HR." }}
+        emptyState={{
+          icon: Building2,
+          title: "No departments yet",
+          description: "Create the first department to get started.",
+          action: { label: "Add department", onClick: () => setDemoStatus("ready") },
+        }}
+        search={{
+          value: search,
+          onChange: value => {
+            setSearch(value)
+            setPage(1)
+          },
+          placeholder: "Search departments…",
+          "aria-label": "Search departments",
+        }}
+        sort={{
+          value: sort,
+          onChange: next => {
+            setSort(next)
+            setPage(1)
+          },
+        }}
+        pagination={{ page: clampedPage, pageSize: PAGE_SIZE, totalItems: sorted.length, onPageChange: setPage }}
+        toolbarEnd={<Button size="sm">Add department</Button>}
+        rowActions={row => (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="icon-sm">
+                  <MoreHorizontal aria-hidden="true" />
+                  <span className="sr-only">Actions for {row.name}</span>
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive">Archive</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RelationTypeahead demo — fixture "positions" with quick create and
+// create-and-edit, both wired to visibly work against in-memory fixture data.
+// ---------------------------------------------------------------------------
+
+const INITIAL_POSITIONS: RelationOption[] = [
+  { id: "pos-1", label: "Payroll Officer", description: "PAY-01" },
+  { id: "pos-2", label: "Software Engineer", description: "ENG-04" },
+  { id: "pos-3", label: "HR Assistant", description: "HR-02" },
+  { id: "pos-4", label: "Recruiter", description: "HR-03" },
+]
+
+function delay<T>(value: T, ms: number): Promise<T> {
+  return new Promise(resolve => setTimeout(() => resolve(value), ms))
+}
+
+function PositionCreateForm({
+  initialName,
+  onCreated,
+  onCancel,
+}: {
+  initialName: string
+  onCreated: (option: RelationOption) => void
+  onCancel: () => void
+}) {
+  const [title, setTitle] = useState(initialName)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = requiredString("Enter a position title.")(title)
+    if (!result.ok) {
+      setError(result.message)
+      return
+    }
+    setSubmitting(true)
+    await delay(undefined, 400)
+    setSubmitting(false)
+    onCreated({ id: `pos-${Date.now()}`, label: result.value })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <FormField id="ds-new-position-title" label="Title" required error={error}>
+        {controlProps => (
+          <Input
+            {...controlProps}
+            value={title}
+            onChange={e => {
+              setTitle(e.target.value)
+              setError(null)
+            }}
+            autoFocus
+          />
+        )}
+      </FormField>
+      <FormFooter onCancel={onCancel} submitting={submitting} saveLabel="Create position" />
+    </form>
+  )
+}
+
+function RelationTypeaheadDemo() {
+  const [positions, setPositions] = useState<RelationOption[]>(INITIAL_POSITIONS)
+  const [employeeName, setEmployeeName] = useState("")
+  const [position, setPosition] = useState<RelationOption | null>(null)
+
+  async function loadOptions(query: string): Promise<ActionResult<{ options: RelationOption[] }>> {
+    await delay(undefined, 300)
+    if (query.trim().toLocaleLowerCase() === "error") {
+      return { ok: false, error: { code: "INTERNAL", message: "Simulated search failure — try clearing the field." } }
+    }
+    const trimmed = query.trim().toLocaleLowerCase()
+    const options =
+      trimmed === "" ? positions : positions.filter(option => option.label.toLocaleLowerCase().includes(trimmed))
+    return { ok: true, data: { options } }
+  }
+
+  async function onQuickCreate(name: string): Promise<ActionResult<RelationOption>> {
+    await delay(undefined, 400)
+    const created: RelationOption = { id: `pos-${Date.now()}`, label: name }
+    setPositions(prev => [...prev, created])
+    return { ok: true, data: created }
+  }
+
+  return (
+    <div className="flex max-w-md flex-col gap-4">
+      <p className="text-sm text-body-subtle">
+        Try searching for something not in the list (e.g. &ldquo;Benefits Analyst&rdquo;), then use{" "}
+        <strong className="font-medium text-heading">Create</strong> or{" "}
+        <strong className="font-medium text-heading">Create and edit&hellip;</strong> — the &ldquo;Employee name&rdquo;
+        field above keeps its value the whole time. Type &ldquo;error&rdquo; to see the search error state.
+      </p>
+
+      <FormField id="ds-employee-name" label="Employee name">
+        {controlProps => (
+          <Input {...controlProps} value={employeeName} onChange={e => setEmployeeName(e.target.value)} />
+        )}
+      </FormField>
+
+      <FormField id="ds-position" label="Position" required hint="Type to search, or create a new one.">
+        {controlProps => (
+          <RelationTypeahead
+            {...controlProps}
+            value={position}
+            onChange={setPosition}
+            loadOptions={loadOptions}
+            onQuickCreate={onQuickCreate}
+            renderCreateForm={({ initialName, onCreated, onCancel }) => (
+              <PositionCreateForm initialName={initialName} onCreated={onCreated} onCancel={onCancel} />
+            )}
+            entityLabel="position"
+            emptyLabel="No positions found."
+            placeholder="Search positions…"
+          />
+        )}
+      </FormField>
+
+      <p className="text-sm text-body-subtle">
+        Selected: <span className="font-medium text-heading">{position ? position.label : "none"}</span>
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Form primitives demo — FormField / FormSection / FormFooter, with dirty-state
+// tracking and inline validation feeding aria-describedby.
+// ---------------------------------------------------------------------------
+
+const INITIAL_DEPARTMENT_FORM = { name: "", code: "" }
+
+function FormPrimitivesDemo() {
+  const [values, setValues] = useState(INITIAL_DEPARTMENT_FORM)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [savedMessage, setSavedMessage] = useState<string | null>(null)
+
+  const dirty = isDirty(INITIAL_DEPARTMENT_FORM, values)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = requiredString("Enter a department name.")(values.name)
+    if (!result.ok) {
+      setNameError(result.message)
+      return
+    }
+    setNameError(null)
+    setSavedMessage(`Saved "${result.value}".`)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-6">
+      <FormSection title="Basic info" description="Required fields are marked with an asterisk.">
+        <FormField id="ds-dept-name" label="Name" required error={nameError}>
+          {controlProps => (
+            <Input
+              {...controlProps}
+              value={values.name}
+              onChange={e => {
+                setValues(v => ({ ...v, name: e.target.value }))
+                setNameError(null)
+                setSavedMessage(null)
+              }}
+            />
+          )}
+        </FormField>
+        <FormField id="ds-dept-code" label="Code" hint="Short internal code, e.g. FIN.">
+          {controlProps => (
+            <Input
+              {...controlProps}
+              value={values.code}
+              onChange={e => {
+                setValues(v => ({ ...v, code: e.target.value }))
+                setSavedMessage(null)
+              }}
+            />
+          )}
+        </FormField>
+      </FormSection>
+
+      {savedMessage && <p className="text-sm text-fg-success">{savedMessage}</p>}
+
+      <FormFooter
+        isDirty={dirty}
+        onCancel={() => {
+          setValues(INITIAL_DEPARTMENT_FORM)
+          setNameError(null)
+          setSavedMessage(null)
+        }}
+        saveLabel="Create department"
+      />
+    </form>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ConfirmDialog demo
+// ---------------------------------------------------------------------------
+
+function ConfirmDialogDemo() {
+  const [open, setOpen] = useState(false)
+  const [simulateFailure, setSimulateFailure] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <Switch checked={simulateFailure} onCheckedChange={setSimulateFailure} id="ds-confirm-fail" />
+        <label htmlFor="ds-confirm-fail" className="text-sm text-heading">
+          Simulate server error on confirm
+        </label>
+      </div>
+      <Button variant="destructive" className="w-fit" onClick={() => setOpen(true)}>
+        Archive department
+      </Button>
+      {result && <p className="text-sm text-body-subtle">{result}</p>}
+
+      <ConfirmDialog<{ id: string }>
+        open={open}
+        onOpenChange={setOpen}
+        title="Archive department"
+        description={
+          <>
+            <strong className="font-medium text-heading">Finance</strong> will be hidden from new employee
+            assignments. Existing employees keep their current department.
+          </>
+        }
+        confirmLabel="Archive"
+        onConfirm={async () => {
+          await delay(undefined, 400)
+          if (simulateFailure) {
+            return { ok: false, error: { code: "INTERNAL", message: "Couldn't archive department. Try again." } }
+          }
+          return { ok: true, data: { id: "1" } }
+        }}
+        onSuccess={data => {
+          setResult(`Archived department ${data.id}.`)
+          setOpen(false)
+        }}
+      />
+    </div>
+  )
+}
+
 export default function DesignSystemPage() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-8 sm:px-6 lg:py-10">
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-12 px-4 py-8 sm:px-6 lg:py-10">
       <div>
         <h1 className="tc-app-title mb-2">Design system reference</h1>
         <p className="tc-measure text-body-subtle">
@@ -332,6 +750,56 @@ export default function DesignSystemPage() {
           Confirmation card (high-risk action)
         </h2>
         <ConfirmationCardExample />
+      </section>
+
+      <Separator />
+
+      <div>
+        <h2 className="text-xl font-medium text-heading">Shared data components (src/components/data)</h2>
+        <p className="tc-measure mt-1 text-body-subtle">
+          The DRY primitives every model screen (04&ndash;14) configures instead of reimplementing.
+        </p>
+      </div>
+
+      <section className="flex min-w-0 flex-col gap-4">
+        <h3 className="text-lg font-medium text-heading">DataTable</h3>
+        <p className="text-sm text-body-subtle">
+          Column config, sorting, client-side search and paging, row actions, and all four required states
+          (loading / empty / error / no-permission) — switch &ldquo;Demo state&rdquo; below to see each one.
+        </p>
+        <DataTableDemo />
+      </section>
+
+      <Separator />
+
+      <section className="flex flex-col gap-4">
+        <h3 className="text-lg font-medium text-heading">RelationTypeahead</h3>
+        <p className="text-sm text-body-subtle">
+          Odoo-style relation picker: search, and when there&rsquo;s no match, &ldquo;Create&rdquo; and
+          &ldquo;Create and edit&hellip;&rdquo; rows, reachable with the keyboard the same way as any other option.
+        </p>
+        <RelationTypeaheadDemo />
+      </section>
+
+      <Separator />
+
+      <section className="flex flex-col gap-4">
+        <h3 className="text-lg font-medium text-heading">Form primitives</h3>
+        <p className="text-sm text-body-subtle">
+          FormField (labelled control + inline error via aria-describedby, required marked beyond colour alone),
+          FormSection, and FormFooter (dirty-state-aware Cancel).
+        </p>
+        <FormPrimitivesDemo />
+      </section>
+
+      <Separator />
+
+      <section className="flex flex-col gap-4">
+        <h3 className="text-lg font-medium text-heading">ConfirmDialog</h3>
+        <p className="text-sm text-body-subtle">
+          Shared high-risk-action confirmation, consistent with the one already on the Users screen.
+        </p>
+        <ConfirmDialogDemo />
       </section>
     </div>
   )

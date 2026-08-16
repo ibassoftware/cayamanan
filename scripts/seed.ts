@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { and, eq } from 'drizzle-orm';
 
-import { companies, tenants } from '@/modules/org/schema';
+import { companies, departments, locations, positions, tenants } from '@/modules/org/schema';
 import { userRoles, users } from '@/modules/identity/schema';
 import { getBootstrapDb } from '@/platform/db';
 import { hashPassword } from '@/modules/identity/service/password';
@@ -91,6 +91,91 @@ async function main() {
   if (seeded.length > 0) {
     console.log('Seeded users (email / password / role) — demo credentials, not for production:');
     for (const line of seeded) console.log(line);
+  }
+
+  await seedOrgReferenceData(db, tenant.id, company.id);
+}
+
+// Idempotent (same shape as SEED_USERS above): a small, realistic set of departments
+// (one level of nesting, to exercise the tree), positions and locations for slice 04
+// (04-organization-employees.md) — enough for the UI/QA to search, filter and assign
+// against without a blank-slate screen. Skips anything whose `code` already exists for
+// this company.
+const SEED_DEPARTMENTS: { code: string; name: string; parentCode: string | null }[] = [
+  { code: 'EXEC', name: 'Executive', parentCode: null },
+  { code: 'FIN', name: 'Finance', parentCode: 'EXEC' },
+  { code: 'HR', name: 'Human Resources', parentCode: 'EXEC' },
+  { code: 'ENG', name: 'Engineering', parentCode: 'EXEC' },
+];
+
+const SEED_POSITIONS = [
+  { code: 'CEO', title: 'Chief Executive Officer' },
+  { code: 'FIN-MGR', title: 'Finance Manager' },
+  { code: 'ACCT', title: 'Accountant' },
+  { code: 'HR-MGR', title: 'HR Manager' },
+  { code: 'SWE', title: 'Software Engineer' },
+];
+
+const SEED_LOCATIONS = [
+  { code: 'MNL-HQ', name: 'Manila Head Office', timezone: 'Asia/Manila' },
+  { code: 'CEB', name: 'Cebu Office', timezone: 'Asia/Manila' },
+];
+
+async function seedOrgReferenceData(db: ReturnType<typeof getBootstrapDb>, tenantId: string, companyId: string) {
+  const codeByOrderedInsert = new Map<string, string>();
+  let deptCount = 0;
+  for (const dept of SEED_DEPARTMENTS) {
+    const [existing] = await db
+      .select({ id: departments.id })
+      .from(departments)
+      .where(and(eq(departments.tenantId, tenantId), eq(departments.companyId, companyId), eq(departments.code, dept.code)))
+      .limit(1);
+    if (existing) {
+      codeByOrderedInsert.set(dept.code, existing.id);
+      continue;
+    }
+    const parentId = dept.parentCode ? (codeByOrderedInsert.get(dept.parentCode) ?? null) : null;
+    const depth = parentId ? 1 : 0;
+    const [created] = await db
+      .insert(departments)
+      .values({ tenantId, companyId, code: dept.code, name: dept.name, parentId, depth })
+      .returning({ id: departments.id });
+    codeByOrderedInsert.set(dept.code, created.id);
+    deptCount += 1;
+  }
+
+  let positionCount = 0;
+  for (const position of SEED_POSITIONS) {
+    const [existing] = await db
+      .select({ id: positions.id })
+      .from(positions)
+      .where(and(eq(positions.tenantId, tenantId), eq(positions.companyId, companyId), eq(positions.code, position.code)))
+      .limit(1);
+    if (existing) continue;
+    await db.insert(positions).values({ tenantId, companyId, code: position.code, title: position.title });
+    positionCount += 1;
+  }
+
+  let locationCount = 0;
+  for (const location of SEED_LOCATIONS) {
+    const [existing] = await db
+      .select({ id: locations.id })
+      .from(locations)
+      .where(and(eq(locations.tenantId, tenantId), eq(locations.companyId, companyId), eq(locations.code, location.code)))
+      .limit(1);
+    if (existing) continue;
+    await db
+      .insert(locations)
+      .values({ tenantId, companyId, code: location.code, name: location.name, timezone: location.timezone });
+    locationCount += 1;
+  }
+
+  if (deptCount + positionCount + locationCount > 0) {
+    console.log(
+      `Seeded org reference data: ${deptCount} department(s), ${positionCount} position(s), ${locationCount} location(s).`,
+    );
+  } else {
+    console.log('Org reference data already present; skipping.');
   }
 }
 

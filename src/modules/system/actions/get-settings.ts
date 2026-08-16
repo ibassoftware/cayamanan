@@ -19,6 +19,9 @@ export const getSettingsAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN'],
   scope: 'company',
+  // Not one of Missy's tools yet — she reaches settings via system.updateSetting's
+  // confirmationPreview instead; exposing a raw settings dump is unnecessary surface.
+  toolExposed: false,
   async handler(_input, ctx) {
     const rows = await ctx.db
       .select({

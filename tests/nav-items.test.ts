@@ -33,4 +33,29 @@ describe('getVisibleNavItems', () => {
   it('shows nothing for an empty role list', () => {
     expect(getVisibleNavItems([])).toEqual([]);
   });
+
+  it('gives Admin/HR the Employees and Organization groups with their sub-menus, but not an Employee', () => {
+    for (const roles of [['ADMIN'], ['HR_PAYROLL']] as const) {
+      const items = getVisibleNavItems(roles);
+      const employees = items.find(item => item.href === '/app/employees');
+      const organization = items.find(item => item.href === '/app/org/departments');
+      expect(employees?.children?.map(c => c.href)).toEqual(['/app/employees', '/app/employees/new']);
+      expect(organization?.children?.map(c => c.href)).toEqual([
+        '/app/org/departments',
+        '/app/org/positions',
+        '/app/org/locations',
+        '/app/org/cost-centers',
+      ]);
+    }
+
+    const employeeItems = getVisibleNavItems(['EMPLOYEE']);
+    expect(employeeItems.some(item => item.href === '/app/employees')).toBe(false);
+    expect(employeeItems.some(item => item.href === '/app/org/departments')).toBe(false);
+  });
+
+  it('shows every role the self-service profile entry', () => {
+    for (const roles of [['ADMIN'], ['HR_PAYROLL'], ['EMPLOYEE']] as const) {
+      expect(getVisibleNavItems(roles).some(item => item.href === '/app/me/profile')).toBe(true);
+    }
+  });
 });

@@ -41,6 +41,7 @@ describe('ctx.audit() throws on a second call within the same action', () => {
       risk: 'high',
       roles: ['ADMIN'],
       scope: 'company',
+      toolExposed: false,
       async handler(_input, ctx) {
         ctx.audit({ entityType: 'test', entityId: null, before: null, after: { n: 1 } });
         ctx.audit({ entityType: 'test', entityId: null, before: null, after: { n: 2 } });

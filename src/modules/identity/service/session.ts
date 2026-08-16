@@ -17,7 +17,8 @@ export interface ResolvedSession {
   tenantId: string;
   companyId: string;
   userId: string;
-  /** users.employee_id lands in slice 04 (self-service link); always null until then. */
+  /** From `users.employee_id` (slice 04 self-service link); null until an ADMIN links
+   * the account via `employee.linkUserAccount`. */
   employeeId: string | null;
   roles: Role[];
   sessionId: string;
@@ -58,7 +59,7 @@ export async function resolveSessionFromCookie(
       tenantId: sessionRow.tenantId,
       companyId: user.companyId,
       userId: user.id,
-      employeeId: null,
+      employeeId: user.employeeId,
       roles: roleRows.map((row) => row.role as Role),
       sessionId: sessionRow.id,
     };

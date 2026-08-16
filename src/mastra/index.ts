@@ -6,6 +6,9 @@ import { Observability, MastraStorageExporter, MastraPlatformExporter, Sensitive
 import { createClient } from 'redis';
 import { weatherWorkflow } from './workflows/weather-workflow';
 import { weatherAgent } from './agents/weather-agent';
+import { missyAgent } from './agents/missy-agent';
+import { piiTextRedactionProcessor } from './observability/pii-text-redaction-processor';
+import { SENSITIVE_KEY_VOCABULARY } from '@/platform/redact';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -33,7 +36,7 @@ void redis.connect().catch((error: Error) => {
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
-  agents: { weatherAgent },
+  agents: { weatherAgent, missyAgent },
   storage,
   // `nodeRedisPreset` maps the cache's command calls onto node-redis' camelCase
   // API. The cast is needed because @mastra/redis types `RedisClient` against the
@@ -52,7 +55,45 @@ export const mastra = new Mastra({
           new MastraPlatformExporter(), // Sends observability events to Mastra Platform (if MASTRA_PLATFORM_ACCESS_TOKEN is set)
         ],
         spanOutputProcessors: [
-          new SensitiveDataFilter(), // Redacts sensitive data like passwords, tokens, keys
+          // Redacts by exact (normalized) key match at any nesting depth. Mastra's
+          // defaults cover credentials (password/token/secret/key/...); this HRIS also
+          // needs its own PII/payroll vocabulary redacted from every trace regardless of
+          // which action a future slice adds — see src/platform/redact.ts for the same
+          // vocabulary applied to application logs. Keep the two lists in sync.
+          new SensitiveDataFilter({
+            sensitiveFields: [
+              'password',
+              'token',
+              'secret',
+              'key',
+              'apikey',
+              'auth',
+              'authorization',
+              'bearer',
+              'bearertoken',
+              'jwt',
+              'credential',
+              'clientsecret',
+              'privatekey',
+              'refresh',
+              'ssn',
+              'bankaccountnumber',
+              'bankaccountname',
+              'bankname',
+              'bankroutingnumber',
+              'sssnumber',
+              'philhealthnumber',
+              'pagibignumber',
+              // Imported rather than restated so the two lists cannot drift — the
+              // previous "keep in sync" comment was the only thing holding them
+              // together, and `hdmfMid`/`mobile` had already fallen out of one.
+              ...SENSITIVE_KEY_VOCABULARY,
+            ],
+          }),
+          // Catches the same values in free text (e.g. the model narrating a tool's
+          // output back to the user), which the key-only filter above cannot — see that
+          // processor's own header comment for why this is a separate pass.
+          piiTextRedactionProcessor,
         ],
       },
     },

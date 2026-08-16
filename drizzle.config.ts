@@ -13,6 +13,8 @@ export default defineConfig({
   schema: [
     './src/modules/org/schema.ts',
     './src/modules/identity/schema.ts',
+    './src/modules/employee/schema.ts',
+    './src/modules/ai/schema.ts',
     './src/platform/schema/audit.ts',
     './src/platform/schema/settings.ts',
   ],

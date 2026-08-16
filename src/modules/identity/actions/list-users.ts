@@ -28,6 +28,12 @@ export const listUsersAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN'],
   scope: 'company',
+  // ADMIN-only tool: the tool bridge filters this out of an Employee's/HR_PAYROLL's tool
+  // list entirely (docs/plan/03-missy-foundation.md criterion 3); executeAction's own
+  // role check is what actually enforces it either way (criterion 6), independent of
+  // whether the tool was ever offered.
+  toolExposed: true,
+  toolDescription: 'List every user in the company, with their roles and status (admin only).',
   async handler(_input, ctx) {
     const userRows = await ctx.db
       .select()

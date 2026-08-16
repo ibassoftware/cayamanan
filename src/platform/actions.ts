@@ -88,18 +88,60 @@ export interface DefineActionArgs<TInput, TOutput> {
    * resolved which tenant the email belongs to).
    */
   anonymous?: boolean;
+  /**
+   * Whether Missy's tool bridge (slice 03, `src/mastra/tools/action-tool-bridge.ts`)
+   * generates a tool for this action. The bridge builds the toolset at request time from
+   * every registered action with `toolExposed: true`, filtered by the caller's roles —
+   * so exposing a new capability to Missy is a registry-only change, never chat plumbing.
+   * Required (not defaulted) so every action author makes this call explicitly instead of
+   * silently inheriting a default.
+   */
+  toolExposed: boolean;
+  /** Shown to the model as the tool description. Falls back to `title` when omitted. */
+  toolDescription?: string;
+  /**
+   * Required when `toolExposed && risk === 'high'` (enforced below): returns a redacted,
+   * human-readable summary of `input` for the confirmation card the UI renders before the
+   * user approves a high-risk action — never the raw input verbatim, since it may contain
+   * salary/bank/PII fields the model itself passed straight through.
+   */
+  confirmationPreview?: (input: TInput) => Record<string, unknown>;
   handler: (input: TInput, ctx: ActionCtx) => Promise<TOutput>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyActionDefinition = DefineActionArgs<any, any>;
 
-const registry = new Map<string, AnyActionDefinition>();
+// Stashed on `globalThis` (not a plain module-level `const`) so the registry survives
+// Next's dev-mode module re-evaluation regardless of exactly which modules get
+// invalidated/re-run on a given save — belt-and-braces alongside the dev/production
+// split in `defineAction` below, which is the actual fix for the reported symptom (see
+// that function's comment).
+declare global {
+  var __cayamananActionRegistry: Map<string, AnyActionDefinition> | undefined;
+}
+
+function getRegistry(): Map<string, AnyActionDefinition> {
+  globalThis.__cayamananActionRegistry ??= new Map<string, AnyActionDefinition>();
+  return globalThis.__cayamananActionRegistry;
+}
+
+const registry = getRegistry();
 
 export function defineAction<TInput, TOutput>(
   def: DefineActionArgs<TInput, TOutput>,
 ): DefineActionArgs<TInput, TOutput> {
-  if (registry.has(def.id)) {
+  // Next's dev server hot-reloads individual action modules (e.g. after editing one
+  // action file) without necessarily re-evaluating every *other* module that already
+  // imported this one — so `registry` above keeps whatever it already held, and the
+  // edited module's `defineAction()` call runs again for an id that's already present.
+  // Treating that as a hard error (as production must) took down the entire action API
+  // until a manual dev-server restart. In anything other than a production boot, the
+  // same id being registered again is assumed to be exactly that reload, not a genuine
+  // collision, so the new definition simply replaces the old one. A real duplicate id
+  // across two different action files is still a defect — `next build`/`next start` run
+  // with NODE_ENV=production, where this still throws.
+  if (registry.has(def.id) && process.env.NODE_ENV === 'production') {
     throw new Error(`Action already registered: ${def.id}`);
   }
   if (def.anonymous) {
@@ -110,12 +152,28 @@ export function defineAction<TInput, TOutput>(
       throw new Error(`Anonymous action "${def.id}" must be risk: 'ordinary' — it cannot use ctx.audit().`);
     }
   }
+  if (def.toolExposed && def.risk === 'high' && !def.confirmationPreview) {
+    throw new Error(
+      `Tool-exposed high-risk action "${def.id}" must define confirmationPreview() — the confirmation card ` +
+        'has nothing safe to show the user without it.',
+    );
+  }
   registry.set(def.id, def);
   return def;
 }
 
 export function getAction(id: string): AnyActionDefinition | undefined {
   return registry.get(id);
+}
+
+/**
+ * Every registered action definition — the tool bridge (slice 03,
+ * `src/mastra/tools/action-tool-bridge.ts`) is the only intended caller: it filters this
+ * down to `toolExposed && roles.some(role in ctx.roles)` at request time to build Missy's
+ * toolset, so a new tool is always a registry-only addition, never a change here.
+ */
+export function listActions(): AnyActionDefinition[] {
+  return Array.from(registry.values());
 }
 
 export interface ExecuteOptions {
@@ -132,6 +190,20 @@ export interface ExecuteOptions {
   /** See `ActionCtx.ip`/`ActionCtx.userAgent` above. */
   ip?: string | null;
   userAgent?: string | null;
+  /**
+   * Attribution for the `audit_logs` row of a `risk: 'high'` action — defaults to
+   * `'USER'`. Only `ai.approveAction` (slice 03's confirmation flow,
+   * `src/modules/ai/actions/approve-action.ts`) passes `'MISSY'`, and only after
+   * independently verifying a single-use, signed confirmation token; this is never
+   * accepted from an HTTP request body (the action route never sets it).
+   */
+  actorKind?: 'USER' | 'MISSY';
+  /**
+   * Recorded on the `audit_logs` row alongside `actorKind: 'MISSY'` — the confirmation
+   * token that authorized this specific execution, for traceability back to the
+   * `ai_confirmations` row. Ignored (left `null`) for `actorKind: 'USER'`.
+   */
+  confirmationToken?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -268,24 +340,31 @@ export async function executeAction(
 
         const result = await def.handler(parsed.data, ctx);
 
-        if (def.risk === 'high') {
-          if (!recordedAudit) {
-            // A high-risk handler that completes without auditing is a defect, not a
-            // client error — fail the transaction so nothing high-risk ships unaudited.
-            throw new Error(`High-risk action "${def.id}" completed without recording an audit entry`);
-          }
+        if (def.risk === 'high' && !recordedAudit) {
+          // A high-risk handler that completes without auditing is a defect, not a
+          // client error — fail the transaction so nothing high-risk ships unaudited.
+          throw new Error(`High-risk action "${def.id}" completed without recording an audit entry`);
+        }
+
+        // Persist whenever a handler recorded an entry, whatever its risk level. Gating
+        // the write on `risk === 'high'` meant an ordinary action could call ctx.audit()
+        // and have it silently discarded — which is how `employee.updateGovernmentIds`
+        // (tax identifiers, updated in place with no history) ended up unauditable.
+        // High risk still *requires* an entry; ordinary actions may opt in.
+        if (recordedAudit) {
           const entry: AuditEntry = recordedAudit;
           await db.insert(auditLogs).values({
             tenantId: verified.tenantId,
             companyId: verified.companyId,
             actorUserId: verified.userId,
-            actorKind: 'USER',
+            actorKind: options.actorKind ?? 'USER',
             actionId: def.id,
             entityType: entry.entityType,
             entityId: entry.entityId,
             before: entry.before,
             after: entry.after,
             requestId,
+            confirmationToken: options.actorKind === 'MISSY' ? (options.confirmationToken ?? null) : null,
           });
         }
 
@@ -303,7 +382,7 @@ export async function executeAction(
       }),
     );
     if (error instanceof ActionError) {
-      return { ok: false, error: err(error.code, error.message) };
+      return { ok: false, error: err(error.code, error.message, { field: error.field, details: error.details }) };
     }
     return { ok: false, error: err('INTERNAL', 'Something went wrong. Please try again.') };
   }

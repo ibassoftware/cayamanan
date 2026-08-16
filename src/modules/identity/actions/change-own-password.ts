@@ -21,6 +21,9 @@ export const changeOwnPasswordAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
   scope: 'self',
+  // Never a Missy tool: a password change must come from the user typing their current
+  // password into a real form, not from a conversational side-channel.
+  toolExposed: false,
   async handler(input, ctx) {
     const [user] = await ctx.db.select().from(users).where(eq(users.id, ctx.userId ?? '')).limit(1);
     if (!user) {

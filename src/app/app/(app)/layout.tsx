@@ -6,6 +6,8 @@ import { Breadcrumbs } from "@/components/shell/breadcrumbs"
 import { ChatSlot } from "@/components/shell/chat-slot"
 import { AccountMenu } from "@/components/shell/account-menu"
 import { getServerSession } from "@/lib/session"
+import { ScreenContextProvider } from "@/lib/screen-context"
+import { ChatProvider } from "@/components/chat/chat-provider"
 
 export default async function AppShellLayout({ children }: { children: ReactNode }) {
   // Server-side gate: every /app/** route requires a valid session. This is the real
@@ -17,31 +19,39 @@ export default async function AppShellLayout({ children }: { children: ReactNode
   }
 
   return (
-    <div className="flex min-h-dvh w-full flex-col bg-background lg:flex-row">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
-      >
-        Skip to main content
-      </a>
+    // Both providers are mounted here — above `{children}`, not inside any one page — so
+    // Missy's conversation state survives client-side navigation between /app/* screens
+    // (03-missy-foundation.md criterion 1). This layout instance is reused across
+    // navigations within the (app) route group; only `children` swaps.
+    <ScreenContextProvider>
+      <ChatProvider>
+        <div className="flex min-h-dvh w-full flex-col bg-background lg:flex-row">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
+          >
+            Skip to main content
+          </a>
 
-      <AppSidebar roles={session.roles} />
+          <AppSidebar roles={session.roles} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-4 border-border border-b bg-card px-4 py-3 sm:px-6">
-          <Breadcrumbs />
-          <AccountMenu />
-        </header>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="flex shrink-0 items-center justify-between gap-4 border-border border-b bg-card px-4 py-3 sm:px-6">
+              <Breadcrumbs />
+              <AccountMenu />
+            </header>
 
-        <main
-          id="main-content"
-          className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:py-8"
-        >
-          {children}
-        </main>
-      </div>
+            <main
+              id="main-content"
+              className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:py-8"
+            >
+              {children}
+            </main>
+          </div>
 
-      <ChatSlot />
-    </div>
+          <ChatSlot />
+        </div>
+      </ChatProvider>
+    </ScreenContextProvider>
   )
 }

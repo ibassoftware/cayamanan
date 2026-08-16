@@ -44,6 +44,7 @@ export const loginAction = defineAction({
   roles: [],
   scope: 'company',
   anonymous: true,
+  toolExposed: false,
   async handler(input, ctx) {
     const email = normalizeEmail(input.email);
     const emailHash = sha256Hex(email);

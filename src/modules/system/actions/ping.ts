@@ -15,6 +15,10 @@ export const pingAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
   scope: 'company',
+  // Slice 03 "Missy tools": the health-check smoke test that proves the tool bridge
+  // itself works, before any real domain tool exists.
+  toolExposed: true,
+  toolDescription: 'Health check — confirms the assistant can reach the server for the current tenant/company.',
   async handler(_input, ctx) {
     return { tenantId: ctx.tenantId, companyId: ctx.companyId, now: ctx.now.toISOString() };
   },

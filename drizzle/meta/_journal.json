@@ -36,6 +36,20 @@
       "when": 1786832545530,
       "tag": "0004_identity_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786837551098,
+      "tag": "0005_ai_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786842244099,
+      "tag": "0006_organization_employee_master_data",
+      "breakpoints": true
     }
   ]
 }

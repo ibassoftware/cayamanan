@@ -12,6 +12,7 @@ export const logoutAction = defineAction({
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
   scope: 'company',
+  toolExposed: false,
   async handler(_input, ctx) {
     // ctx.sessionId is always set for an authenticated (non-anonymous) action.
     if (ctx.sessionId) {

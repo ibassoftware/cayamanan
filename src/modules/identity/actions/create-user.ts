@@ -33,6 +33,9 @@ export const createUserAction = defineAction({
   risk: 'high',
   roles: ['ADMIN'],
   scope: 'company',
+  // Out of scope for slice 03's Missy tools: creating a user sets an initial password,
+  // which should never travel through a chat transcript.
+  toolExposed: false,
   async handler(input, ctx) {
     const email = normalizeEmail(input.email);
 

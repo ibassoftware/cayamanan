@@ -66,6 +66,7 @@ describe('identity authorization', () => {
       risk: 'ordinary',
       roles: ['EMPLOYEE'],
       scope: 'self',
+      toolExposed: false,
       async handler(input, ctx) {
         return { ctxEmployeeId: ctx.employeeId ?? null, inputEmployeeId: input.employeeId };
       },

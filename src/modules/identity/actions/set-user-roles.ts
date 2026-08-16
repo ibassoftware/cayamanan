@@ -21,6 +21,7 @@ export const setUserRolesAction = defineAction({
   risk: 'high',
   roles: ['ADMIN'],
   scope: 'company',
+  toolExposed: false,
   async handler(input, ctx) {
     // `users` has no company_id RLS predicate — this explicit filter confirms the
     // target user is actually in the caller's company before mutating anything.

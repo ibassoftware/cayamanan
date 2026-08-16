@@ -36,6 +36,7 @@ describe('executeAction redacts sensitive error content before logging', () => {
       risk: 'ordinary',
       roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
       scope: 'company',
+      toolExposed: false,
       async handler() {
         throw new Error('failed to update salary to 999999 for bankAccountNumber 12345');
       },

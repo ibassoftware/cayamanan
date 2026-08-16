@@ -4,10 +4,19 @@ import { Pool } from 'pg';
 
 import * as orgSchema from '@/modules/org/schema';
 import * as identitySchema from '@/modules/identity/schema';
+import * as employeeSchema from '@/modules/employee/schema';
+import * as aiSchema from '@/modules/ai/schema';
 import * as auditSchema from './schema/audit';
 import * as settingsSchema from './schema/settings';
 
-const schema = { ...orgSchema, ...identitySchema, ...auditSchema, ...settingsSchema };
+const schema = {
+  ...orgSchema,
+  ...identitySchema,
+  ...employeeSchema,
+  ...aiSchema,
+  ...auditSchema,
+  ...settingsSchema,
+};
 
 export type ScopedDb = NodePgDatabase<typeof schema>;
 

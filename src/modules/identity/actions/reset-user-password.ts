@@ -24,6 +24,7 @@ export const resetUserPasswordAction = defineAction({
   risk: 'high',
   roles: ['ADMIN'],
   scope: 'company',
+  toolExposed: false,
   async handler(input, ctx) {
     const [user] = await ctx.db
       .select({ id: users.id })

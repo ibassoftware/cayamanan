@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { redact } from '@/platform/redact';
 import { systemSettings } from '@/platform/schema/settings';
 
 // Postgres unique-violation code, and the partial index (see
@@ -66,6 +67,15 @@ export const updateSettingAction = defineAction({
   risk: 'high',
   roles: ['ADMIN'],
   scope: 'company',
+  // Slice 03: the vehicle for the confirmation flow ("change the system setting X to Y")
+  // — high-risk and tool-exposed, so the bridge routes every call through a confirmation
+  // card rather than executing directly. `value` is arbitrary jsonb; `redact()` strips
+  // any key/token that looks sensitive rather than trusting the caller's key name.
+  toolExposed: true,
+  toolDescription: 'Propose a change to a system setting (admin only) — requires user confirmation before it applies.',
+  confirmationPreview(input) {
+    return { key: input.key, value: redact(input.value), effectiveFrom: input.effectiveFrom ?? null };
+  },
   async handler(input, ctx) {
     const effectiveFrom = input.effectiveFrom ?? ctx.now.toISOString().slice(0, 10);
 

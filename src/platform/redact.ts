@@ -2,10 +2,32 @@
 // logged. Matches case-insensitively; `bank*`, `sss*`, `philhealth*`, `pagibig*`,
 // `password*` match by prefix (e.g. `bankAccountNumber`, `sss_number`, `passwordHash`),
 // the rest match the whole key name.
-const EXACT_KEYS = new Set(['salary', 'rate', 'tin', 'birthdate', 'address']);
-const PREFIX_KEYS = ['bank', 'sss', 'philhealth', 'pagibig', 'password'];
+const EXACT_KEYS = new Set(['salary', 'rate', 'tin', 'birthdate', 'address', 'email']);
+// `hdmf` covers `hdmfMid`, `mobile` covers `mobile`/`mobileNumber` — both are
+// employee PII (employee_government_ids.hdmf_mid, employees.mobile,
+// employee_contacts.mobile) and neither matched any entry before.
+const PREFIX_KEYS = ['bank', 'sss', 'philhealth', 'pagibig', 'password', 'hdmf', 'mobile'];
+
+/**
+ * Single source of truth for this HRIS's own PII/payroll vocabulary, re-used by
+ * Mastra's `SensitiveDataFilter` (src/mastra/index.ts) so trace redaction and log
+ * redaction cannot drift apart. Note `SensitiveDataFilter` matches whole keys only,
+ * so it will catch `tin` but not `hdmfMid` — the prefix-aware `redact()` below,
+ * applied by the span output processor, is what covers the suffixed variants.
+ */
+export const SENSITIVE_KEY_VOCABULARY: readonly string[] = [
+  ...EXACT_KEYS,
+  ...PREFIX_KEYS,
+];
 
 const REDACTED = '[REDACTED]';
+
+// Email addresses show up in free text (a model narrating a tool's own output back to
+// the user, e.g. "you are jane@example.com") where no *key* named "email" is present for
+// `isSensitiveKey` to catch — this is exactly the shape observability traces take
+// (03-missy-foundation.md criterion 7: "no email, salary, or bank values"), so string
+// values are scrubbed for this pattern regardless of which key holds them.
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
 function isSensitiveKey(key: string): boolean {
   const normalized = key.toLowerCase();
@@ -37,7 +59,12 @@ export function redact<T>(value: T): T {
 
 function redactInternal(value: unknown, seen: WeakSet<object>): unknown {
   if (typeof value === 'string') {
-    return stringContainsSensitiveToken(value) ? REDACTED : value;
+    // Email addresses are scrubbed in place first (a string can be otherwise-safe prose
+    // that merely happens to contain one), then the *remaining* text is still checked for
+    // a sensitive token — a combined message like "contact jane@example.com about her
+    // salary" ends up fully redacted, not just missing the address.
+    const withoutEmails = value.replace(EMAIL_RE, REDACTED);
+    return stringContainsSensitiveToken(withoutEmails) ? REDACTED : withoutEmails;
   }
   if (value === null || typeof value !== 'object') {
     return value;
