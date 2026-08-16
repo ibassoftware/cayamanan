@@ -26,6 +26,7 @@ import {
   setPersistedThreadId,
   type SimpleStorage,
 } from "@/lib/chat/thread-storage"
+import { buildMessageText, type MissyAttachmentRef } from "@/components/chat/chat-attachment-state"
 
 export interface MissyThreadSummary {
   id: string
@@ -45,7 +46,7 @@ interface ChatContextValue {
   messages: UIMessage[]
   status: ChatStatus
   error: Error | undefined
-  sendMessage: (text: string) => void
+  sendMessage: (text: string, attachment?: MissyAttachmentRef) => void
   retry: () => void
   stop: () => void
   threadId: string | null
@@ -149,6 +150,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     onFinish: () => {
       refreshThreads()
     },
+    // Without this a failed turn left no trace anywhere: the panel renders `error` as an
+    // alert, but nothing ever reached the console, so a turn that stopped mid-answer was
+    // undiagnosable after the fact. `useChat` still sets `status: 'error'` and `error`
+    // itself — this only adds the breadcrumb.
+    onError: (chatError) => {
+      console.error("[missy chat]", chatError)
+    },
   })
 
   const clearThreadState = useCallback(() => {
@@ -217,11 +225,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, attachment?: MissyAttachmentRef) => {
       const trimmed = text.trim()
-      if (!trimmed) return
+      if (!trimmed && !attachment) return
       clearError()
-      void sendChatMessage({ text: trimmed, metadata: screenContextRef.current })
+      // The attachment reference (filename/rowCount/id, never content) is folded into
+      // the message text itself, not metadata — see buildMessageText's own comment for
+      // why metadata never reaches the model.
+      void sendChatMessage({ text: buildMessageText(trimmed, attachment), metadata: screenContextRef.current })
     },
     [sendChatMessage, clearError],
   )

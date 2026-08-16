@@ -24,6 +24,15 @@ const VERBS: Record<string, string> = {
   approve: 'Approved',
   open: 'Opened',
   navigate: 'Opened',
+  // The 201-file and import actions. Without these, `employee.addEducation` fell through
+  // to the raw-id fallback and an HR user saw "employee.addEducation" in the transcript.
+  add: 'Added',
+  remove: 'Removed',
+  upload: 'Uploaded',
+  apply: 'Applied',
+  import: 'Imported',
+  bulk: 'Updated in bulk',
+  suggest: 'Suggested',
 };
 
 // Ids whose generic derivation would read badly.
@@ -68,4 +77,35 @@ export function humanizeToolName(actionId: string): string {
     .join(' ');
 
   return rest ? `${verb} ${rest}` : verb;
+}
+
+/** Whether an action reads or changes something, as far as the browser can tell. */
+export type ActionIntent = 'read' | 'write' | 'unknown';
+
+// The read subset of VERBS above. Anything else VERBS knows about is a write, so the two
+// cannot drift apart as verbs are added.
+const READ_VERBS = new Set(['list', 'get', 'search', 'suggest']);
+
+// Reads whose id carries no verb at all, so the derivation below cannot place them.
+const READ_ACTIONS = new Set(['identity.me', 'system.ping']);
+
+/**
+ * Cosmetic classification, used only to pick which pose Missy strikes while a tool runs
+ * (see src/lib/chat/missy-state.ts). The authoritative flag is `read` on the registry
+ * entry, but that lives server-side and the browser only ever receives the tool name —
+ * shipping a registry manifest to the client for the sake of an animation would be a poor
+ * trade. Unrecognised ids return `unknown` and fall back to a neutral busy pose, so a new
+ * action is merely unpolished, never mislabelled.
+ *
+ * This grants nothing and gates nothing: `executeAction`'s role check is the real boundary.
+ */
+export function classifyActionIntent(actionId: string): ActionIntent {
+  if (READ_ACTIONS.has(actionId)) return 'read';
+
+  const [, name] = actionId.split('.');
+  if (!name) return 'unknown';
+
+  const verb = splitCamel(name)[0]?.toLowerCase() ?? '';
+  if (READ_VERBS.has(verb)) return 'read';
+  return verb in VERBS ? 'write' : 'unknown';
 }

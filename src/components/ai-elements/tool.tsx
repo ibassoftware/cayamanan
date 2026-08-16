@@ -28,7 +28,13 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
     className={cn(
-      "group not-prose mb-4 w-full overflow-hidden rounded-lg border border-border-control bg-card shadow-xs",
+      // `shrink-0` is load-bearing, not cosmetic. This card is a flex item in the message
+      // column, so it inherits `flex-shrink: 1` and the layout was compressing its box —
+      // an 80px box around 154px of content — while `overflow-hidden` (there to clip the
+      // trigger's corners) quietly guillotined the rest. The result was cards that looked
+      // torn in half and overlapping in the Missy panel. The header and the panel were
+      // both fine the whole time; the card's own box was the problem.
+      "group not-prose mb-4 w-full shrink-0 overflow-hidden rounded-lg border border-border-control bg-card shadow-xs",
       className
     )}
     {...props}
@@ -86,12 +92,24 @@ const statusVariants: Record<
   "output-error": "destructive",
 };
 
-export const getStatusBadge = (status: ToolPart["state"]) => (
-  <Badge className="gap-1.5 rounded-full" variant={statusVariants[status]}>
-    {statusIcons[status]}
-    {statusLabels[status]}
-  </Badge>
-);
+export const getStatusBadge = (status: ToolPart["state"]) => {
+  // Plain success shows its icon alone. Measured in the Missy panel, the "Completed" chip
+  // was 99px of a 255px card and squeezed the tool's own name down to 62px — "Opened a
+  // record" rendered as "Opene…". Labelling every routine call "Completed" is noise
+  // besides; what a user needs words for is a call that is still running, has failed, or
+  // wants approval, and all of those keep their text.
+  //
+  // The label stays in the accessibility tree via `sr-only`, so the WCAG 1.4.1 intent of
+  // the rule above still holds — state is conveyed by an icon and a name, never by colour.
+  const iconOnly = status === "output-available";
+
+  return (
+    <Badge className={cn("gap-1.5 rounded-full", iconOnly && "px-1.5")} variant={statusVariants[status]}>
+      {statusIcons[status]}
+      {iconOnly ? <span className="sr-only">{statusLabels[status]}</span> : statusLabels[status]}
+    </Badge>
+  );
+};
 
 export const ToolHeader = ({
   className,
@@ -109,15 +127,23 @@ export const ToolHeader = ({
       className={cn(
         // Terracotta accordion trigger: 20/18px padding, 15px medium, heading
         // ink, card cream, hover + open both step to the warmer cream.
-        "flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 bg-card px-5 py-[18px] text-left font-medium text-[0.9375rem] text-heading transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring group-data-[state=open]:bg-accent",
+        // `gap-3`/`px-4`, not `gap-4`/`px-5`: this trigger's real home is the Missy panel,
+        // which is ~384px wide and leaves the card about 255px. Twenty pixels of padding a
+        // side plus a 16px gap was a meaningful slice of that.
+        "flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 bg-card px-4 py-3 text-left font-medium text-[0.9375rem] text-heading transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring group-data-[state=open]:bg-accent",
         className
       )}
       {...props}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {/* `flex-nowrap`, not `flex-wrap`. Wrapping put the wrench, the title and the status
+          badge on three separate lines inside the chat panel — a 116px-tall header for one
+          line of text, which read as a broken card. Nowrap lets the title's `truncate`
+          actually engage, which is the behaviour that was intended all along: the icon and
+          badge hold their size and the long tool name gives way. */}
+      <div className="flex min-w-0 flex-nowrap items-center gap-2">
         <WrenchIcon className="size-4 shrink-0 text-body-subtle" />
-        <span className="truncate">{title ?? derivedName}</span>
-        {getStatusBadge(state)}
+        <span className="min-w-0 truncate">{title ?? derivedName}</span>
+        <span className="shrink-0">{getStatusBadge(state)}</span>
       </div>
       <ChevronDownIcon className="size-4 shrink-0 text-body-subtle transition-transform group-data-[state=open]:rotate-180" />
     </CollapsibleTrigger>
