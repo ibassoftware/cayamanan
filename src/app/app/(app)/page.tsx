@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getServerSession } from "@/lib/session"
+import { isRouteReleased } from "@/components/shell/nav-items"
 import type { Role } from "@/platform/actions"
 
 const MODULES = [
@@ -49,7 +50,12 @@ export default async function AppHomePage() {
     redirect("/app/me/security")
   }
 
-  const visibleModules = MODULES.filter(module => module.roles.some(role => roles.includes(role)))
+  // `isRouteReleased` is the single source of truth for the first public build's surface
+  // (src/components/shell/nav-items.ts). Filtering here too keeps this page from offering a
+  // module the sidebar deliberately hides — Payroll had no route at all and led to a 404.
+  const visibleModules = MODULES.filter(
+    module => isRouteReleased(module.href) && module.roles.some(role => roles.includes(role)),
+  )
 
   return (
     <div className="flex flex-col gap-8">

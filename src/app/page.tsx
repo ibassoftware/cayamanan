@@ -1,35 +1,16 @@
-import Link from "next/link";
+import { redirect } from "next/navigation"
 
-export default function Home() {
-  return (
-    <div className="flex flex-1 flex-col bg-background">
-      <main className="mx-auto flex w-full max-w-[1152px] flex-1 flex-col justify-center px-6 py-24">
-        <div className="tc-measure">
-          <span className="mb-4 block font-medium text-body-subtle text-xs uppercase tracking-[0.1em]">
-            AI-first HRIS
-          </span>
-          <h1>Cayamanan</h1>
-          <p className="text-[1.25rem] leading-[1.7] text-body">
-            Payroll is the mission-critical core. Employees, contracts,
-            attendance, leave and benefits are built around it — multi-company
-            and multi-tenant from the first record.
-          </p>
-          <p className="text-body">
-            Deterministic software is authoritative for every payroll
-            calculation. The assistant explains, flags and assists; it never
-            computes the amount.
-          </p>
-        </div>
+import { getServerSession } from "@/lib/session"
 
-        <div className="mt-12 flex flex-col gap-4 sm:flex-row">
-          <Link
-            className="tc-btn-brand inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-6 font-medium text-[0.9375rem] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring"
-            href="/chat"
-          >
-            Open the assistant
-          </Link>
-        </div>
-      </main>
-    </div>
-  );
+// There is no marketing landing page, deliberately: this is an internal HRIS, and the
+// root previously rendered a product pitch whose only call to action opened `/chat` — a
+// scaffold that has since been deleted. Every visit now lands where the visitor can
+// actually do something.
+//
+// The redirect is a convenience, not a boundary. `/app/**` does its own session check in
+// `src/app/app/(app)/layout.tsx`, so sending someone to `/app` here never grants access;
+// if the session is stale, that layout bounces them to `/login` anyway.
+export default async function RootPage() {
+  const session = await getServerSession()
+  redirect(session ? "/app" : "/login")
 }

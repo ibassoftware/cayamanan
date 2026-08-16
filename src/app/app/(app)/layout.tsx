@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/shell/app-sidebar"
 import { Breadcrumbs } from "@/components/shell/breadcrumbs"
 import { ChatSlot } from "@/components/shell/chat-slot"
 import { AccountMenu } from "@/components/shell/account-menu"
+import { MissyPageBadge } from "@/components/missy/missy-page-badge"
 import { getServerSession } from "@/lib/session"
 import { ScreenContextProvider } from "@/lib/screen-context"
 import { ChatProvider } from "@/components/chat/chat-provider"
@@ -42,7 +43,10 @@ export default async function AppShellLayout({ children }: { children: ReactNode
           <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
             <header className="flex shrink-0 items-center justify-between gap-4 border-border border-b bg-card px-4 py-3 sm:px-6">
               <Breadcrumbs />
-              <AccountMenu />
+              <div className="flex items-center gap-3">
+                <MissyPageBadge />
+                <AccountMenu />
+              </div>
             </header>
 
             <main
