@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import '@/modules/system/actions/register';
@@ -19,6 +19,19 @@ import { testSession } from './helpers/session';
 // (JSON-stringified) over the offered set, for a realistic screen (`/app/employees`) vs
 // the unscoped baseline. This is a real regression check, not just a one-off number: if a
 // later slice's scoping table drifts and the reduction collapses, this test catches it.
+// Scoping reads `MISSY_TOOL_SCOPING` from the environment, and `.env` currently pins it to
+// `unscoped` (the measured default — see .env.example for why). These tests measure the
+// scoping mechanism itself, so they must pin the env rather than inherit whatever the
+// deployment happens to be set to; without this they silently measure the unscoped path
+// twice and "prove" a 0% reduction.
+beforeAll(() => {
+  vi.stubEnv('MISSY_TOOL_SCOPING', 'scoped');
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
+
 function payloadChars(tools: Record<string, { id: string; description?: string; inputSchema?: unknown }>): number {
   let total = 0;
   for (const tool of Object.values(tools)) {
