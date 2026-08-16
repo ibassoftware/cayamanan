@@ -1,11 +1,26 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { costCenters } from '../schema';
 
 const UNIQUE_CODE_CONSTRAINT = 'cost_centers_tenant_company_code_uidx';
+
+// See update-position.ts for the `keyIsUnique`/`keyIsAlsoMutableField` rationale.
+const COST_CENTER_SELECTOR: NaturalKeySelectorConfig = {
+  table: costCenters,
+  idColumn: costCenters.id,
+  idField: 'id',
+  keyColumn: costCenters.code,
+  tenantIdColumn: costCenters.tenantId,
+  companyIdColumn: costCenters.companyId,
+  keyField: 'code',
+  entityLabel: 'Cost center',
+  keyIsUnique: true,
+  keyIsAlsoMutableField: true,
+};
 
 function isDuplicateCode(error: unknown): boolean {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
@@ -22,24 +37,29 @@ export const updateCostCenterAction = defineAction({
   id: 'org.updateCostCenter',
   title: 'Update cost center',
   input: z
-    .object({ id: z.string().uuid(), code: z.string().min(1).optional(), name: z.string().min(1).optional(), isActive: z.boolean().optional() })
-    .strict(),
+    .object({
+      ...idOrKeyShape('id', 'code'),
+      name: z.string().min(1).optional(),
+      isActive: z.boolean().optional(),
+    })
+    .strict()
+    .superRefine(requireIdOrKey('id', 'code')),
   output: z.object({ id: z.string().uuid(), code: z.string(), name: z.string(), isActive: z.boolean() }),
   read: false,
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Update a cost center’s code, name or active flag.',
+  toolDescription:
+    'Update a cost center’s code, name or active flag. Identify the cost center by its code (e.g. "CC-100") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select()
-      .from(costCenters)
-      .where(and(eq(costCenters.id, input.id), eq(costCenters.tenantId, ctx.tenantId), eq(costCenters.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Cost center not found.');
-    }
+    const existing = await resolveByIdOrKey<typeof costCenters.$inferSelect>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      COST_CENTER_SELECTOR,
+      input,
+    );
 
     try {
       const [updated] = await ctx.db

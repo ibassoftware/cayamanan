@@ -1,17 +1,19 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
-import { ActionError } from '@/platform/errors';
 import { assertAssignmentInScope } from '../service/validate-assignment';
 import { employees } from '../schema';
+import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../service/employee-selector';
 
-// `employeeNo` is immutable after creation (not editable here) and `status` has its own
-// action (employee.setStatus) — kept separate so status transitions stay a single,
-// reviewable code path rather than folded into a generic profile PATCH.
+// `employeeNo` is immutable after creation (not editable here — see
+// employee-selector.ts's header comment for why that means `employeeId`/`employeeNo`
+// need no "also a mutable field" special-casing) and `status` has its own action
+// (employee.setStatus) — kept separate so status transitions stay a single, reviewable
+// code path rather than folded into a generic profile PATCH.
 const inputSchema = z
   .object({
-    employeeId: z.string().uuid(),
+    ...employeeIdOrNoShape,
     firstName: z.string().min(1).optional(),
     middleName: z.string().nullable().optional(),
     lastName: z.string().min(1).optional(),
@@ -29,7 +31,8 @@ const inputSchema = z
     positionId: z.string().uuid().nullable().optional(),
     locationId: z.string().uuid().nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(requireEmployeeIdOrNo);
 
 export const updateEmployeeAction = defineAction({
   id: 'employee.update',
@@ -41,22 +44,10 @@ export const updateEmployeeAction = defineAction({
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Update an employee’s profile fields or current department/position/location assignment.',
+  toolDescription:
+    'Update an employee’s profile fields or current department/position/location assignment. Identify the employee by employeeNo (e.g. "QA-0001") rather than employeeId whenever you have it — employee numbers are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(
-        and(
-          eq(employees.id, input.employeeId),
-          eq(employees.tenantId, ctx.tenantId),
-          eq(employees.companyId, ctx.companyId),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Employee not found.');
-    }
+    const existing = await resolveEmployee(ctx.db, ctx.tenantId, ctx.companyId, input);
 
     if (input.departmentId !== undefined || input.positionId !== undefined || input.locationId !== undefined) {
       await assertAssignmentInScope(ctx.db, ctx.tenantId, ctx.companyId, {

@@ -1,9 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
-import { ActionError } from '@/platform/errors';
-import { employeeGovernmentIds, employees } from '../schema';
+import { employeeGovernmentIds } from '../schema';
+import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../service/employee-selector';
 
 // Ordinary risk, ADMIN/HR_PAYROLL only (docs/plan/04-organization-employees.md), so no
 // confirmation card. It IS audited, though: this is the one row-per-employee table and it
@@ -17,14 +17,15 @@ import { employeeGovernmentIds, employees } from '../schema';
 // a mis-filed government form, which is the whole reason to keep it.
 const inputSchema = z
   .object({
-    employeeId: z.string().uuid(),
+    ...employeeIdOrNoShape,
     sssNo: z.string().nullable().optional(),
     philhealthNo: z.string().nullable().optional(),
     pagibigNo: z.string().nullable().optional(),
     tin: z.string().nullable().optional(),
     hdmfMid: z.string().nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(requireEmployeeIdOrNo);
 
 export const updateGovernmentIdsAction = defineAction({
   id: 'employee.updateGovernmentIds',
@@ -36,22 +37,10 @@ export const updateGovernmentIdsAction = defineAction({
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Set an employee’s SSS/PhilHealth/Pag-IBIG/TIN numbers (admin/HR only).',
+  toolDescription:
+    'Set an employee’s SSS/PhilHealth/Pag-IBIG/TIN numbers (admin/HR only). Identify the employee by employeeNo (e.g. "QA-0001") rather than employeeId whenever you have it — employee numbers are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [employee] = await ctx.db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(
-        and(
-          eq(employees.id, input.employeeId),
-          eq(employees.tenantId, ctx.tenantId),
-          eq(employees.companyId, ctx.companyId),
-        ),
-      )
-      .limit(1);
-    if (!employee) {
-      throw new ActionError('NOT_FOUND', 'Employee not found.');
-    }
+    const employee = await resolveEmployee(ctx.db, ctx.tenantId, ctx.companyId, input);
 
     const [existing] = await ctx.db
       .select({

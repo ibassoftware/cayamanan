@@ -1,11 +1,26 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { locations } from '../schema';
 
 const UNIQUE_CODE_CONSTRAINT = 'locations_tenant_company_code_uidx';
+
+// See update-position.ts for the `keyIsUnique`/`keyIsAlsoMutableField` rationale.
+const LOCATION_SELECTOR: NaturalKeySelectorConfig = {
+  table: locations,
+  idColumn: locations.id,
+  idField: 'id',
+  keyColumn: locations.code,
+  tenantIdColumn: locations.tenantId,
+  companyIdColumn: locations.companyId,
+  keyField: 'code',
+  entityLabel: 'Location',
+  keyIsUnique: true,
+  keyIsAlsoMutableField: true,
+};
 
 function isDuplicateCode(error: unknown): boolean {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
@@ -23,14 +38,14 @@ export const updateLocationAction = defineAction({
   title: 'Update location',
   input: z
     .object({
-      id: z.string().uuid(),
-      code: z.string().min(1).optional(),
+      ...idOrKeyShape('id', 'code'),
       name: z.string().min(1).optional(),
       address: z.string().nullable().optional(),
       timezone: z.string().min(1).optional(),
       isActive: z.boolean().optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine(requireIdOrKey('id', 'code')),
   output: z.object({
     id: z.string().uuid(),
     code: z.string(),
@@ -44,16 +59,16 @@ export const updateLocationAction = defineAction({
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Update a location’s details or active flag.',
+  toolDescription:
+    'Update a location’s details or active flag. Identify the location by its code (e.g. "MNL") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select()
-      .from(locations)
-      .where(and(eq(locations.id, input.id), eq(locations.tenantId, ctx.tenantId), eq(locations.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Location not found.');
-    }
+    const existing = await resolveByIdOrKey<typeof locations.$inferSelect>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      LOCATION_SELECTOR,
+      input,
+    );
 
     try {
       const [updated] = await ctx.db

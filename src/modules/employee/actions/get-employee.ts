@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
 import { loadEmployeeDetail } from '../service/load-employee-detail';
+import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../service/employee-selector';
 
 // ADMIN/HR_PAYROLL only — the PII boundary's "returned only to ADMIN/HR or the employee
 // themself" is satisfied by this role list alone (criterion 6: an EMPLOYEE-only caller,
@@ -53,16 +54,18 @@ export const employeeDetailSchema = z.object({
 export const getEmployeeAction = defineAction({
   id: 'employee.get',
   title: 'Get employee',
-  input: z.object({ employeeId: z.string().uuid() }).strict(),
+  input: z.object({ ...employeeIdOrNoShape }).strict().superRefine(requireEmployeeIdOrNo),
   output: employeeDetailSchema,
   read: true,
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Get one employee’s full profile, government IDs and contacts (admin/HR only).',
+  toolDescription:
+    'Get one employee’s full profile, government IDs and contacts (admin/HR only). Identify the employee by employeeNo (e.g. "QA-0001") rather than employeeId whenever you have it — employee numbers are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const detail = await loadEmployeeDetail(ctx.db, ctx.tenantId, ctx.companyId, input.employeeId);
+    const employee = await resolveEmployee(ctx.db, ctx.tenantId, ctx.companyId, input);
+    const detail = await loadEmployeeDetail(ctx.db, ctx.tenantId, ctx.companyId, employee.id);
     if (!detail) {
       throw new ActionError('NOT_FOUND', 'Employee not found.');
     }

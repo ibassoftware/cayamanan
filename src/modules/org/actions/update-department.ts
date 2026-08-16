@@ -1,12 +1,29 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { departments } from '../schema';
 import { MAX_DEPARTMENT_DEPTH, recomputeSubtreeDepths, resolveDepth, wouldCreateCycle } from '../service/department-tree';
 
 const UNIQUE_CODE_CONSTRAINT = 'departments_tenant_company_code_uidx';
+
+// See update-position.ts for the `keyIsUnique`/`keyIsAlsoMutableField` rationale — same
+// shape here: `code` is `UNIQUE (tenant_id, company_id, code)` at the DB level, and this
+// action can itself rename it, so `id` stays authoritative whenever supplied.
+const DEPARTMENT_SELECTOR: NaturalKeySelectorConfig = {
+  table: departments,
+  idColumn: departments.id,
+  idField: 'id',
+  keyColumn: departments.code,
+  tenantIdColumn: departments.tenantId,
+  companyIdColumn: departments.companyId,
+  keyField: 'code',
+  entityLabel: 'Department',
+  keyIsUnique: true,
+  keyIsAlsoMutableField: true,
+};
 
 function isDuplicateCode(error: unknown): boolean {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
@@ -22,15 +39,20 @@ function isDuplicateCode(error: unknown): boolean {
 export const updateDepartmentAction = defineAction({
   id: 'org.updateDepartment',
   title: 'Update department',
+  // `parentId` deliberately keeps taking only a uuid, not a `parentCode` alternative —
+  // re-parenting is a rare admin operation (unlike renaming), and adding a second
+  // code-to-id lookup inside the existing cycle/depth logic isn't worth it until it's a
+  // real pain point (see id-or-key.ts guarantee (3): don't invent a natural-key lookup
+  // where the pain it solves is small).
   input: z
     .object({
-      id: z.string().uuid(),
-      code: z.string().min(1).optional(),
+      ...idOrKeyShape('id', 'code'),
       name: z.string().min(1).optional(),
       parentId: z.string().uuid().nullable().optional(),
       isActive: z.boolean().optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine(requireIdOrKey('id', 'code')),
   output: z.object({
     id: z.string().uuid(),
     code: z.string(),
@@ -44,16 +66,16 @@ export const updateDepartmentAction = defineAction({
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Update a department’s code, name, parent or active flag.',
+  toolDescription:
+    'Update a department’s code, name, parent or active flag. Identify the department by its code (e.g. "FIN") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select()
-      .from(departments)
-      .where(and(eq(departments.id, input.id), eq(departments.tenantId, ctx.tenantId), eq(departments.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Department not found.');
-    }
+    const existing = await resolveByIdOrKey<typeof departments.$inferSelect>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      DEPARTMENT_SELECTOR,
+      input,
+    );
 
     const reparenting = input.parentId !== undefined && input.parentId !== existing.parentId;
     let depth = existing.depth;

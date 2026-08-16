@@ -1,30 +1,44 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
-import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { costCenters } from '../schema';
+
+// See update-cost-center.ts/update-position.ts — `keyIsAlsoMutableField` is left `false`
+// here: archive takes no other fields, so `code` is a pure selector.
+const COST_CENTER_SELECTOR: NaturalKeySelectorConfig = {
+  table: costCenters,
+  idColumn: costCenters.id,
+  idField: 'id',
+  keyColumn: costCenters.code,
+  tenantIdColumn: costCenters.tenantId,
+  companyIdColumn: costCenters.companyId,
+  keyField: 'code',
+  entityLabel: 'Cost center',
+  keyIsUnique: true,
+};
 
 export const archiveCostCenterAction = defineAction({
   id: 'org.archiveCostCenter',
   title: 'Archive cost center',
-  input: z.object({ id: z.string().uuid() }).strict(),
+  input: z.object({ ...idOrKeyShape('id', 'code') }).strict().superRefine(requireIdOrKey('id', 'code')),
   output: z.object({ id: z.string().uuid(), isActive: z.boolean() }),
   read: false,
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Archive (soft-delete) a cost center.',
+  toolDescription:
+    'Archive (soft-delete) a cost center. Identify it by its code (e.g. "CC-100") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select({ id: costCenters.id, isActive: costCenters.isActive })
-      .from(costCenters)
-      .where(and(eq(costCenters.id, input.id), eq(costCenters.tenantId, ctx.tenantId), eq(costCenters.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Cost center not found.');
-    }
+    const existing = await resolveByIdOrKey<{ id: string; isActive: boolean }>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      COST_CENTER_SELECTOR,
+      input,
+    );
 
     await ctx.db
       .update(costCenters)

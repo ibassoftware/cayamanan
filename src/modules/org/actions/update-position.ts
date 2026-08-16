@@ -1,11 +1,31 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { positions } from '../schema';
 
 const UNIQUE_CODE_CONSTRAINT = 'positions_tenant_company_code_uidx';
+
+// `code` is `UNIQUE (tenant_id, company_id, code)` at the DB level (see
+// drizzle/0006_organization_employee_master_data.sql) — `keyIsUnique: true` is a
+// documented fact here, not an assumption. `keyIsAlsoMutableField: true` because this
+// action can itself rename `code` to a new value (see id-or-key.ts's doc comment): `id`,
+// when supplied, stays authoritative for finding the row so a legitimate rename isn't
+// rejected as "code doesn't resolve to anything yet".
+const POSITION_SELECTOR: NaturalKeySelectorConfig = {
+  table: positions,
+  idColumn: positions.id,
+  idField: 'id',
+  keyColumn: positions.code,
+  tenantIdColumn: positions.tenantId,
+  companyIdColumn: positions.companyId,
+  keyField: 'code',
+  entityLabel: 'Position',
+  keyIsUnique: true,
+  keyIsAlsoMutableField: true,
+};
 
 function isDuplicateCode(error: unknown): boolean {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
@@ -22,24 +42,29 @@ export const updatePositionAction = defineAction({
   id: 'org.updatePosition',
   title: 'Update position',
   input: z
-    .object({ id: z.string().uuid(), code: z.string().min(1).optional(), title: z.string().min(1).optional(), isActive: z.boolean().optional() })
-    .strict(),
+    .object({
+      ...idOrKeyShape('id', 'code'),
+      title: z.string().min(1).optional(),
+      isActive: z.boolean().optional(),
+    })
+    .strict()
+    .superRefine(requireIdOrKey('id', 'code')),
   output: z.object({ id: z.string().uuid(), code: z.string(), title: z.string(), isActive: z.boolean() }),
   read: false,
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Update a position’s code, title or active flag.',
+  toolDescription:
+    'Update a position’s code, title or active flag. Identify the position by its code (e.g. "HR-MGR") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select()
-      .from(positions)
-      .where(and(eq(positions.id, input.id), eq(positions.tenantId, ctx.tenantId), eq(positions.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Position not found.');
-    }
+    const existing = await resolveByIdOrKey<typeof positions.$inferSelect>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      POSITION_SELECTOR,
+      input,
+    );
 
     try {
       const [updated] = await ctx.db

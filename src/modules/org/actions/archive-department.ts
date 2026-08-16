@@ -1,9 +1,23 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
-import { ActionError } from '@/platform/errors';
+import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
 import { departments } from '../schema';
+
+// See update-department.ts/update-position.ts — `keyIsAlsoMutableField` is left `false`
+// here: archive takes no other fields, so `code` is a pure selector.
+const DEPARTMENT_SELECTOR: NaturalKeySelectorConfig = {
+  table: departments,
+  idColumn: departments.id,
+  idField: 'id',
+  keyColumn: departments.code,
+  tenantIdColumn: departments.tenantId,
+  companyIdColumn: departments.companyId,
+  keyField: 'code',
+  entityLabel: 'Department',
+  keyIsUnique: true,
+};
 
 // Soft-delete only (`is_active = false`) — departments are referenced by employees'
 // current-assignment fields (and, from slice 05, by employment_assignments), so rows are
@@ -12,23 +26,23 @@ import { departments } from '../schema';
 export const archiveDepartmentAction = defineAction({
   id: 'org.archiveDepartment',
   title: 'Archive department',
-  input: z.object({ id: z.string().uuid() }).strict(),
+  input: z.object({ ...idOrKeyShape('id', 'code') }).strict().superRefine(requireIdOrKey('id', 'code')),
   output: z.object({ id: z.string().uuid(), isActive: z.boolean() }),
   read: false,
   risk: 'ordinary',
   roles: ['ADMIN', 'HR_PAYROLL'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Archive (soft-delete) a department.',
+  toolDescription:
+    'Archive (soft-delete) a department. Identify it by its code (e.g. "FIN") rather than id whenever you have it — codes are short and transcribe reliably, ids are long random UUIDs that are easy to mistype.',
   async handler(input, ctx) {
-    const [existing] = await ctx.db
-      .select({ id: departments.id, isActive: departments.isActive })
-      .from(departments)
-      .where(and(eq(departments.id, input.id), eq(departments.tenantId, ctx.tenantId), eq(departments.companyId, ctx.companyId)))
-      .limit(1);
-    if (!existing) {
-      throw new ActionError('NOT_FOUND', 'Department not found.');
-    }
+    const existing = await resolveByIdOrKey<{ id: string; isActive: boolean }>(
+      ctx.db,
+      ctx.tenantId,
+      ctx.companyId,
+      DEPARTMENT_SELECTOR,
+      input,
+    );
 
     await ctx.db
       .update(departments)
