@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
+import { describeScreens } from '../screens';
 
 // The navigation tool (03-missy-foundation.md: "Navigation tool ui.navigate and focus
 // tool ui.openRecord"). This action never touches the database — it validates the
@@ -22,7 +23,12 @@ export const navigateAction = defineAction({
   roles: ['ADMIN', 'HR_PAYROLL', 'EMPLOYEE'],
   scope: 'company',
   toolExposed: true,
-  toolDescription: 'Change the main screen to a given /app page (e.g. /app/settings/system).',
+  // The description carries the screen catalogue so the model can choose a path itself
+  // rather than asking the user what the app's own routes are.
+  toolDescription:
+    'Change the main screen to an /app page. Never ask the user for a path — pick it from ' +
+    `these screens: ${describeScreens()}. If the user wants a screen that is not listed, ` +
+    'say it does not exist yet rather than guessing a path.',
   async handler(input) {
     return { path: input.path };
   },

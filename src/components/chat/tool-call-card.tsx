@@ -47,7 +47,20 @@ export function ToolCallCard({ part }: { part: ToolUIPart | DynamicToolUIPart })
     <Tool defaultOpen>
       <ToolHeader {...headerProps} title={toolName} />
       <ToolContent>
-        <ToolInput input={part.input} />
+        {/* `input` is undefined while the model is still streaming the tool call's
+            arguments (state 'input-streaming'). ToolInput renders it through CodeBlock,
+            which does `code.split('\n')` unguarded — passing undefined throws and takes
+            down the whole chat panel, not just this card. */}
+        {part.input === undefined ? (
+          <div className="space-y-2">
+            <span className={overlineClass}>Input</span>
+            <p className="text-body-subtle text-sm" aria-live="polite">
+              Preparing…
+            </p>
+          </div>
+        ) : (
+          <ToolInput input={part.input} />
+        )}
 
         {part.state === "output-error" && (
           <div className="space-y-2">
