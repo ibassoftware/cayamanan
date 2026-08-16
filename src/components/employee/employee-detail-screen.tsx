@@ -1,5 +1,12 @@
 "use client"
 
+// The Philippine "201 file" — full employee detail screen (ADMIN/HR_PAYROLL). Header/
+// summary band + six purpose-grouped tabs: Personal, Employment, Government, Family,
+// Background, Onboarding. Each tab manages its own read/edit toggle and (for repeating
+// collections) add/edit/remove dialogs; this screen only owns the single `employee.get`
+// fetch, the four required loading/empty/error/no-permission states, and merging each
+// tab's successful mutation back into local state (no full refetch needed — every tab
+// hands back exactly the fields it changed).
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Lock, Pencil } from "lucide-react"
@@ -10,11 +17,16 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle, CardDescription }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LoadingPanel } from "@/components/data/state-panels"
-import { EmployeeForm } from "@/components/employee/employee-form"
+import { BackgroundTab } from "@/components/employee/background-tab"
+import { EmployeePhoto } from "@/components/employee/employee-photo"
+import { EmploymentTab } from "@/components/employee/employment-tab"
+import { FamilyTab } from "@/components/employee/family-tab"
 import { GovernmentIdsForm } from "@/components/employee/government-ids-form"
-import { ContactsList } from "@/components/employee/contacts-list"
 import { LinkUserAccountDialog } from "@/components/employee/link-user-account-dialog"
+import { OnboardingTab } from "@/components/employee/onboarding-tab"
+import { PersonalTab } from "@/components/employee/personal-tab"
 import {
+  employeeInitials,
   formatEmployeeName,
   statusBadgeVariant,
   statusLabel,
@@ -32,10 +44,11 @@ export interface EmployeeDetailScreenProps {
 export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDetailScreenProps) {
   const router = useRouter()
   const [result, setResult] = useState<ActionResult<EmployeeDetail> | null>(null)
-  const [editingProfile, setEditingProfile] = useState(false)
   const [editingGovIds, setEditingGovIds] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [departmentName, setDepartmentName] = useState<string | null>(null)
+  const [positionTitle, setPositionTitle] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const response = await callAction<EmployeeDetail>("employee.get", { employeeId })
@@ -63,6 +76,32 @@ export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDet
       cancelled = true
     }
   }, [employeeId, router])
+
+  // Header band's department/position labels — `employee.get` only returns ids (see
+  // schema.ts's comment on why these are plain ids, not a join). Re-resolved whenever
+  // the assignment changes (e.g. after the Employment tab's own edit).
+  const departmentId = result?.ok ? result.data.departmentId : null
+  const positionId = result?.ok ? result.data.positionId : null
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      if (departmentId) {
+        const response = await callAction<{ departments: { id: string; name: string }[] }>("org.listDepartments")
+        if (!cancelled && response.ok) setDepartmentName(response.data.departments.find(d => d.id === departmentId)?.name ?? null)
+      } else if (!cancelled) {
+        setDepartmentName(null)
+      }
+      if (positionId) {
+        const response = await callAction<{ positions: { id: string; title: string }[] }>("org.listPositions")
+        if (!cancelled && response.ok) setPositionTitle(response.data.positions.find(p => p.id === positionId)?.title ?? null)
+      } else if (!cancelled) {
+        setPositionTitle(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [departmentId, positionId])
 
   if (result === null) {
     return <LoadingPanel label="Loading employee…" />
@@ -102,6 +141,12 @@ export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDet
 
   const employee = result.data
 
+  /** Merges a tab's successful mutation straight into local state — every tab hands
+   * back exactly the fields it changed, so no refetch (and no lost tab selection). */
+  function patchEmployee(patch: Partial<EmployeeDetail>) {
+    setResult({ ok: true, data: { ...employee, ...patch } })
+  }
+
   async function handleStatusChange(nextStatus: string | null) {
     if (!nextStatus || nextStatus === employee.status) return
     setStatusSubmitting(true)
@@ -117,90 +162,78 @@ export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDet
       }
       return
     }
-    setResult({ ok: true, data: { ...employee, status: response.data.status } })
+    patchEmployee({ status: response.data.status })
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="tc-app-title">{formatEmployeeName(employee)}</h1>
-          <p className="text-sm text-body-subtle">{employee.employeeNo}</p>
-        </div>
+      <Card>
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <EmployeePhoto
+              employeeId={employee.id}
+              documents={employee.documents}
+              initials={employeeInitials(employee)}
+              onChange={documents => patchEmployee({ documents })}
+            />
+            <div className="flex flex-col gap-0.5">
+              <h1 className="tc-app-title">{formatEmployeeName(employee)}</h1>
+              <p className="text-sm text-body-subtle">{employee.employeeNo}</p>
+              <p className="text-sm text-body-subtle">
+                {[departmentName, positionTitle].filter(Boolean).join(" · ") || "No department/position assigned yet"}
+              </p>
+            </div>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {employee.status === "SEPARATED" ? (
-            <Badge variant={statusBadgeVariant(employee.status)}>{statusLabel(employee.status)}</Badge>
-          ) : (
-            <Select value={employee.status} onValueChange={handleStatusChange} disabled={statusSubmitting}>
-              <SelectTrigger aria-label="Employee status" size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="ON_LEAVE">On leave</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          {canLinkAccount && (
-            <Button variant="outline" onClick={() => setLinkDialogOpen(true)}>
-              Link user account
-            </Button>
-          )}
-        </div>
-      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {employee.status === "SEPARATED" ? (
+              <Badge variant={statusBadgeVariant(employee.status)}>{statusLabel(employee.status)}</Badge>
+            ) : (
+              <Select value={employee.status} onValueChange={handleStatusChange} disabled={statusSubmitting}>
+                <SelectTrigger aria-label="Employee status" size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="ON_LEAVE">On leave</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {canLinkAccount && (
+              <Button variant="outline" onClick={() => setLinkDialogOpen(true)}>
+                Link user account
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="profile">
+      <Tabs defaultValue="personal">
         <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="government-ids">Government IDs</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="personal">Personal</TabsTrigger>
+          <TabsTrigger value="employment">Employment</TabsTrigger>
+          <TabsTrigger value="government">Government</TabsTrigger>
+          <TabsTrigger value="family">Family</TabsTrigger>
+          <TabsTrigger value="background">Background</TabsTrigger>
+          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile">
-          {editingProfile ? (
-            <EmployeeForm
-              mode="edit"
-              employee={employee}
-              onSaved={() => {
-                setEditingProfile(false)
-                load()
-              }}
-              onCancel={() => setEditingProfile(false)}
-            />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Profile</CardTitle>
-                <CardDescription>Identity, contact and employment details.</CardDescription>
-                <CardAction>
-                  <Button variant="outline" size="sm" onClick={() => setEditingProfile(true)}>
-                    <Pencil aria-hidden="true" />
-                    Edit
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                <ProfileField label="Hire date" value={employee.hireDate} />
-                <ProfileField label="Birth date" value={employee.birthDate} />
-                <ProfileField label="Sex" value={employee.sex} />
-                <ProfileField label="Civil status" value={employee.civilStatus} />
-                <ProfileField label="Personal email" value={employee.emailPersonal} />
-                <ProfileField label="Work email" value={employee.emailWork} />
-                <ProfileField label="Mobile" value={employee.mobile} />
-              </CardContent>
-            </Card>
-          )}
+        <TabsContent value="personal">
+          <PersonalTab employee={employee} onChange={patchEmployee} />
         </TabsContent>
 
-        <TabsContent value="government-ids">
+        <TabsContent value="employment">
+          <EmploymentTab employee={employee} onChange={patchEmployee} />
+        </TabsContent>
+
+        <TabsContent value="government">
           {editingGovIds ? (
             <GovernmentIdsForm
               employeeId={employee.id}
               governmentIds={employee.governmentIds}
               onSaved={governmentIds => {
                 setEditingGovIds(false)
-                setResult({ ok: true, data: { ...employee, governmentIds } })
+                patchEmployee({ governmentIds })
               }}
               onCancel={() => setEditingGovIds(false)}
             />
@@ -216,19 +249,27 @@ export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDet
                   </Button>
                 </CardAction>
               </CardHeader>
-              <CardContent className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                <ProfileField label="SSS no." value={employee.governmentIds?.sssNo ?? null} />
-                <ProfileField label="PhilHealth no." value={employee.governmentIds?.philhealthNo ?? null} />
-                <ProfileField label="Pag-IBIG no." value={employee.governmentIds?.pagibigNo ?? null} />
-                <ProfileField label="TIN" value={employee.governmentIds?.tin ?? null} />
-                <ProfileField label="HDMF MID" value={employee.governmentIds?.hdmfMid ?? null} />
+              <CardContent className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                <GovernmentIdField label="SSS no." value={employee.governmentIds?.sssNo ?? null} />
+                <GovernmentIdField label="PhilHealth no." value={employee.governmentIds?.philhealthNo ?? null} />
+                <GovernmentIdField label="Pag-IBIG no." value={employee.governmentIds?.pagibigNo ?? null} />
+                <GovernmentIdField label="TIN" value={employee.governmentIds?.tin ?? null} />
+                <GovernmentIdField label="HDMF MID" value={employee.governmentIds?.hdmfMid ?? null} />
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
-        <TabsContent value="contacts">
-          <ContactsList contacts={employee.contacts} />
+        <TabsContent value="family">
+          <FamilyTab employee={employee} onChange={patchEmployee} />
+        </TabsContent>
+
+        <TabsContent value="background">
+          <BackgroundTab employee={employee} onChange={patchEmployee} />
+        </TabsContent>
+
+        <TabsContent value="onboarding">
+          <OnboardingTab employee={employee} onChange={patchEmployee} />
         </TabsContent>
       </Tabs>
 
@@ -243,7 +284,7 @@ export function EmployeeDetailScreen({ employeeId, canLinkAccount }: EmployeeDet
   )
 }
 
-function ProfileField({ label, value }: { label: string; value: string | null }) {
+function GovernmentIdField({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-body-subtle">{label}</span>

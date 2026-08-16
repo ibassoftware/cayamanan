@@ -128,9 +128,14 @@ export function EmployeesScreen() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="tc-app-title">Employees</h1>
-        <Button nativeButton={false} render={<Link href="/app/employees/new" />}>
-          Add employee
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" nativeButton={false} render={<Link href="/app/employees/import" />}>
+            Import
+          </Button>
+          <Button nativeButton={false} render={<Link href="/app/employees/new" />}>
+            Add employee
+          </Button>
+        </div>
       </div>
 
       <DataTable

@@ -6,7 +6,16 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { ScopedDb } from '@/platform/db';
-import { employeeContacts, employeeGovernmentIds, employees } from '../schema';
+import {
+  employeeContacts,
+  employeeDocuments,
+  employeeEducation,
+  employeeGovernmentIds,
+  employeeRequirements,
+  employeeTraining,
+  employeeWorkHistory,
+  employees,
+} from '../schema';
 
 export interface EmployeeDetail {
   id: string;
@@ -22,12 +31,18 @@ export interface EmployeeDetail {
   emailWork: string | null;
   mobile: string | null;
   address: unknown;
+  permanentAddress: unknown;
+  birthPlace: string | null;
+  nationality: string | null;
+  religion: string | null;
+  bloodType: string | null;
   hireDate: string;
   status: string;
   photoUrl: string | null;
   departmentId: string | null;
   positionId: string | null;
   locationId: string | null;
+  biometricId: string | null;
   governmentIds: {
     sssNo: string | null;
     philhealthNo: string | null;
@@ -41,6 +56,56 @@ export interface EmployeeDetail {
     name: string;
     relationship: string | null;
     mobile: string | null;
+    email: string | null;
+    address: string | null;
+    birthDate: string | null;
+    isPrimary: boolean;
+  }[];
+  education: {
+    id: string;
+    level: string;
+    school: string;
+    degree: string | null;
+    fieldOfStudy: string | null;
+    startYear: number | null;
+    endYear: number | null;
+    honors: string | null;
+  }[];
+  workHistory: {
+    id: string;
+    employer: string;
+    position: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    reasonForLeaving: string | null;
+  }[];
+  training: {
+    id: string;
+    title: string;
+    provider: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    hours: string | null;
+    certificateNo: string | null;
+  }[];
+  requirements: {
+    id: string;
+    requirement: string;
+    status: string;
+    submittedOn: string | null;
+    notes: string | null;
+  }[];
+  // Metadata only — never `content`/`checksum`. Downloading the bytes goes through GET
+  // /api/files/[documentId], never this payload (see resolve-document-for-download.ts).
+  documents: {
+    id: string;
+    kind: string;
+    requirementId: string | null;
+    documentType: string | null;
+    filename: string;
+    mimeType: string;
+    byteSize: number;
+    createdAt: string;
   }[];
 }
 
@@ -67,6 +132,29 @@ export async function loadEmployeeDetail(
     .where(eq(employeeGovernmentIds.employeeId, employeeId))
     .limit(1);
   const contactRows = await tenantDb.select().from(employeeContacts).where(eq(employeeContacts.employeeId, employeeId));
+  const educationRows = await tenantDb.select().from(employeeEducation).where(eq(employeeEducation.employeeId, employeeId));
+  const workHistoryRows = await tenantDb
+    .select()
+    .from(employeeWorkHistory)
+    .where(eq(employeeWorkHistory.employeeId, employeeId));
+  const trainingRows = await tenantDb.select().from(employeeTraining).where(eq(employeeTraining.employeeId, employeeId));
+  const requirementRows = await tenantDb
+    .select()
+    .from(employeeRequirements)
+    .where(eq(employeeRequirements.employeeId, employeeId));
+  const documentRows = await tenantDb
+    .select({
+      id: employeeDocuments.id,
+      kind: employeeDocuments.kind,
+      requirementId: employeeDocuments.requirementId,
+      documentType: employeeDocuments.documentType,
+      filename: employeeDocuments.filename,
+      mimeType: employeeDocuments.mimeType,
+      byteSize: employeeDocuments.byteSize,
+      createdAt: employeeDocuments.createdAt,
+    })
+    .from(employeeDocuments)
+    .where(eq(employeeDocuments.employeeId, employeeId));
   const govIds = govIdsRows[0] ?? null;
 
   return {
@@ -83,12 +171,18 @@ export async function loadEmployeeDetail(
     emailWork: employee.emailWork,
     mobile: employee.mobile,
     address: employee.address,
+    permanentAddress: employee.permanentAddress,
+    birthPlace: employee.birthPlace,
+    nationality: employee.nationality,
+    religion: employee.religion,
+    bloodType: employee.bloodType,
     hireDate: employee.hireDate,
     status: employee.status,
     photoUrl: employee.photoUrl,
     departmentId: employee.departmentId,
     positionId: employee.positionId,
     locationId: employee.locationId,
+    biometricId: employee.biometricId,
     governmentIds: govIds
       ? {
           sssNo: govIds.sssNo,
@@ -104,6 +198,54 @@ export async function loadEmployeeDetail(
       name: row.name,
       relationship: row.relationship,
       mobile: row.mobile,
+      email: row.email,
+      address: row.address,
+      birthDate: row.birthDate,
+      isPrimary: row.isPrimary,
+    })),
+    education: educationRows.map((row) => ({
+      id: row.id,
+      level: row.level,
+      school: row.school,
+      degree: row.degree,
+      fieldOfStudy: row.fieldOfStudy,
+      startYear: row.startYear,
+      endYear: row.endYear,
+      honors: row.honors,
+    })),
+    workHistory: workHistoryRows.map((row) => ({
+      id: row.id,
+      employer: row.employer,
+      position: row.position,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      reasonForLeaving: row.reasonForLeaving,
+    })),
+    training: trainingRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      provider: row.provider,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      hours: row.hours,
+      certificateNo: row.certificateNo,
+    })),
+    requirements: requirementRows.map((row) => ({
+      id: row.id,
+      requirement: row.requirement,
+      status: row.status,
+      submittedOn: row.submittedOn,
+      notes: row.notes,
+    })),
+    documents: documentRows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      requirementId: row.requirementId,
+      documentType: row.documentType,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      byteSize: row.byteSize,
+      createdAt: row.createdAt.toISOString(),
     })),
   };
 }

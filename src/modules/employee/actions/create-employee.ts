@@ -3,21 +3,30 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
-import { employeeNo as employeeNoField, isoDate, uuidRef } from '@/platform/fields';
+import { biometricId as biometricIdField, employeeNo as employeeNoField, isoDate, uuidRef } from '@/platform/fields';
 import { assertAssignmentInScope } from '../service/validate-assignment';
 import { employees } from '../schema';
 
 const UNIQUE_EMPLOYEE_NO_CONSTRAINT = 'employees_tenant_company_employee_no_uidx';
+const UNIQUE_BIOMETRIC_ID_CONSTRAINT = 'employees_tenant_company_biometric_id_uidx';
 
-function isDuplicateEmployeeNo(error: unknown): boolean {
+function isConstraintViolation(error: unknown, constraint: string): boolean {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
   return candidates.some(
     (candidate) =>
       typeof candidate === 'object' &&
       candidate !== null &&
       (candidate as { code?: unknown }).code === '23505' &&
-      (candidate as { constraint?: unknown }).constraint === UNIQUE_EMPLOYEE_NO_CONSTRAINT,
+      (candidate as { constraint?: unknown }).constraint === constraint,
   );
+}
+
+function isDuplicateEmployeeNo(error: unknown): boolean {
+  return isConstraintViolation(error, UNIQUE_EMPLOYEE_NO_CONSTRAINT);
+}
+
+function isDuplicateBiometricId(error: unknown): boolean {
+  return isConstraintViolation(error, UNIQUE_BIOMETRIC_ID_CONSTRAINT);
 }
 
 const inputSchema = z
@@ -39,6 +48,7 @@ const inputSchema = z
     departmentId: uuidRef('department').optional(),
     positionId: uuidRef('position').optional(),
     locationId: uuidRef('location').optional(),
+    biometricId: biometricIdField().optional(),
   })
   .strict();
 
@@ -101,6 +111,7 @@ export const createEmployeeAction = defineAction({
           departmentId: input.departmentId ?? null,
           positionId: input.positionId ?? null,
           locationId: input.locationId ?? null,
+          biometricId: input.biometricId ?? null,
           createdBy: ctx.userId,
           updatedBy: ctx.userId,
         })
@@ -112,6 +123,11 @@ export const createEmployeeAction = defineAction({
         // closes the common case; this closes the race itself (see
         // system.updateSetting's identical pattern for the open-row unique index).
         throw new ActionError('VALIDATION_ERROR', 'This employee number is already in use.', { field: 'employeeNo' });
+      }
+      if (isDuplicateBiometricId(error)) {
+        throw new ActionError('VALIDATION_ERROR', 'This biometric id is already assigned to another employee.', {
+          field: 'biometricId',
+        });
       }
       throw error;
     }

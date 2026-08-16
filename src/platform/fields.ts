@@ -38,6 +38,16 @@ export function isoDate(): z.ZodString {
 }
 
 /**
+ * The enrollment id a physical biometric/time-clock device assigns to this employee —
+ * device-facing operational data (not a government id), unique per company when set
+ * (`employees_tenant_company_biometric_id_uidx`). Slice 07's Attendance CSV import uses
+ * this as the join key to match raw device rows back to an employee.
+ */
+export function biometricId(): z.ZodString {
+  return z.string().min(1).describe('The id assigned by the biometric/time-clock device, used to match imported attendance.');
+}
+
+/**
  * UUID referencing another entity's primary key. `noun` names what it points to, e.g.
  * `uuidRef('department')` -> "UUID of the department." Prefer a natural-key alternative
  * (`code`/`employeeNo`/...) over this when the target action offers one — see

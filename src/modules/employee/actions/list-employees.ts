@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { defineAction } from '@/platform/actions';
 import { uuidRef } from '@/platform/fields';
 import { employees } from '../schema';
+import { buildSearchPatterns } from '../service/employee-search';
 
 // Deliberately excludes birth_date/sex/civil_status/email*/mobile/address and never
 // touches employee_government_ids/employee_contacts at all — the PII boundary
@@ -34,8 +35,18 @@ export const listEmployeesAction = defineAction({
   title: 'List employees',
   input: z
     .object({
-      search: z.string().optional(),
-      status: z.enum(['ACTIVE', 'ON_LEAVE', 'SEPARATED']).optional(),
+      search: z
+        .string()
+        .optional()
+        .describe(
+          'Free text matched against employee number and every part of the name. Words may be given in any order — "Maria Santos" and "Santos Maria" both find Maria Clara Santos.',
+        ),
+      // Missy was calling this action three times in a row, once per status, because
+      // nothing told her what omitting it does.
+      status: z
+        .enum(['ACTIVE', 'ON_LEAVE', 'SEPARATED'])
+        .optional()
+        .describe('Omit to search every status. Only pass this when the user asked to filter by one.'),
       departmentId: uuidRef('department').optional(),
       positionId: uuidRef('position').optional(),
       locationId: uuidRef('location').optional(),
@@ -60,10 +71,19 @@ export const listEmployeesAction = defineAction({
     if (input.departmentId) conditions.push(eq(employees.departmentId, input.departmentId));
     if (input.positionId) conditions.push(eq(employees.positionId, input.positionId));
     if (input.locationId) conditions.push(eq(employees.locationId, input.locationId));
-    if (input.search && input.search.trim().length > 0) {
-      const term = `%${input.search.trim()}%`;
+    // Every token must match *some* searchable column, so "Maria Clara", "Maria Santos"
+    // and "Santos Maria" all find Maria Clara Santos. Matching the query as one string
+    // against one column at a time — the previous behaviour — meant any multi-word name
+    // returned nothing at all, and middle name was never searched.
+    for (const pattern of buildSearchPatterns(input.search ?? '')) {
       conditions.push(
-        or(ilike(employees.firstName, term), ilike(employees.lastName, term), ilike(employees.employeeNo, term))!,
+        or(
+          ilike(employees.firstName, pattern),
+          ilike(employees.middleName, pattern),
+          ilike(employees.lastName, pattern),
+          ilike(employees.suffix, pattern),
+          ilike(employees.employeeNo, pattern),
+        )!,
       );
     }
 

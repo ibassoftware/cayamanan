@@ -1,0 +1,2 @@
+ALTER TABLE "employees" ADD COLUMN "biometric_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "employees_tenant_company_biometric_id_uidx" ON "employees" USING btree ("tenant_id","company_id","biometric_id") WHERE "employees"."biometric_id" IS NOT NULL;

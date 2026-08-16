@@ -25,6 +25,62 @@ const contactSchema = z.object({
   name: z.string(),
   relationship: z.string().nullable(),
   mobile: z.string().nullable(),
+  email: z.string().nullable(),
+  address: z.string().nullable(),
+  birthDate: z.string().nullable(),
+  isPrimary: z.boolean(),
+});
+
+const educationSchema = z.object({
+  id: z.string().uuid(),
+  level: z.string(),
+  school: z.string(),
+  degree: z.string().nullable(),
+  fieldOfStudy: z.string().nullable(),
+  startYear: z.number().int().nullable(),
+  endYear: z.number().int().nullable(),
+  honors: z.string().nullable(),
+});
+
+const workHistorySchema = z.object({
+  id: z.string().uuid(),
+  employer: z.string(),
+  position: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  reasonForLeaving: z.string().nullable(),
+});
+
+const trainingSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  provider: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  // `numeric(8,2)` comes back from `pg` as a string — never parseFloat'd (CLAUDE.md).
+  hours: z.string().nullable(),
+  certificateNo: z.string().nullable(),
+});
+
+const requirementSchema = z.object({
+  id: z.string().uuid(),
+  requirement: z.string(),
+  status: z.string(),
+  submittedOn: z.string().nullable(),
+  notes: z.string().nullable(),
+});
+
+// Metadata only — never `content`/`checksum` (see employee.listDocuments/`GET
+// /api/files/[documentId]` for where the actual bytes are read, both separately gated).
+const documentSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.string(),
+  requirementId: z.string().uuid().nullable(),
+  documentType: z.string().nullable(),
+  filename: z.string(),
+  mimeType: z.string(),
+  byteSize: z.number(),
+  createdAt: z.string(),
 });
 
 export const employeeDetailSchema = z.object({
@@ -41,14 +97,28 @@ export const employeeDetailSchema = z.object({
   emailWork: z.string().nullable(),
   mobile: z.string().nullable(),
   address: z.unknown(),
+  permanentAddress: z.unknown(),
+  birthPlace: z.string().nullable(),
+  nationality: z.string().nullable(),
+  religion: z.string().nullable(),
+  bloodType: z.string().nullable(),
   hireDate: z.string(),
   status: z.string(),
   photoUrl: z.string().nullable(),
   departmentId: z.string().uuid().nullable(),
   positionId: z.string().uuid().nullable(),
   locationId: z.string().uuid().nullable(),
+  // Device-facing operational data (not a government id) — see employees.biometricId's
+  // column comment. Included here (ADMIN/HR_PAYROLL/self only, same PII boundary as the
+  // rest of this payload); deliberately never on employee.list's output.
+  biometricId: z.string().nullable(),
   governmentIds: governmentIdsSchema,
   contacts: z.array(contactSchema),
+  education: z.array(educationSchema),
+  workHistory: z.array(workHistorySchema),
+  training: z.array(trainingSchema),
+  requirements: z.array(requirementSchema),
+  documents: z.array(documentSchema),
 });
 
 export const getEmployeeAction = defineAction({
