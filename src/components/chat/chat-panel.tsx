@@ -90,6 +90,16 @@ function ChatPanelContent({ onCollapse }: { onCollapse: () => void }) {
   const [announcement, setAnnouncement] = useState("")
   const previousStatusRef = useRef<ChatStatus | null>(null)
 
+  // "In flight, but the assistant has produced nothing visible yet" — either the request
+  // is still submitted, or it is streaming a turn whose only parts so far are reasoning
+  // (which renders as nothing, see below).
+  const lastMessage = messages[messages.length - 1]
+  const assistantHasVisibleOutput =
+    lastMessage?.role === "assistant" &&
+    lastMessage.parts.some((part) => part.type === "text" || part.type.startsWith("tool-"))
+  const isAwaitingFirstOutput =
+    status === "submitted" || (status === "streaming" && !assistantHasVisibleOutput)
+
   // One polite announcement per turn (submitted -> streaming -> ready), never per token —
   // see src/lib/chat/announcer.ts for why.
   useEffect(() => {
@@ -143,6 +153,18 @@ function ChatPanelContent({ onCollapse }: { onCollapse: () => void }) {
 
           {historyState.status === "ready" &&
             messages.map((message) => <ChatMessage key={message.id} message={message} />)}
+
+          {/* Luna is a reasoning model: it thinks before emitting any text, and OpenAI
+              returns that reasoning encrypted (`reasoningEncryptedContent`) with an empty
+              text body — so there is genuinely nothing to render for it. Without this the
+              panel just sits still for several seconds and looks broken. Shown while the
+              turn is in flight but nothing visible has arrived yet. */}
+          {historyState.status === "ready" && isAwaitingFirstOutput && (
+            <div className="flex items-center gap-2 py-1 text-body-subtle text-sm" aria-live="polite">
+              <Spinner />
+              <span>Missy is thinking…</span>
+            </div>
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
