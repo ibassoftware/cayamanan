@@ -71,14 +71,21 @@ export interface NaturalKeySelectorConfig {
 }
 
 /** Spread into a `z.object({...})` shape alongside an action's other fields, e.g.
- * `z.object({ ...idOrKeyShape('id', 'code'), title: z.string().optional() })`. */
+ * `z.object({ ...idOrKeyShape('id', 'code'), title: z.string().optional() })`.
+ *
+ * Both fields carry a `.describe()` generated from the field names themselves — every
+ * consumer (every `org.*`/`employee.*` selector) inherits it for free, and it stays
+ * generic on purpose: this helper has no domain noun to work with beyond whatever the
+ * caller named the two fields, so it steers on the one thing that's always true of this
+ * shape (prefer the natural key, it's shorter and harder to mistype) rather than
+ * guessing a per-entity example. */
 export function idOrKeyShape<TIdField extends string, TKeyField extends string>(
   idField: TIdField,
   keyField: TKeyField,
 ): Record<TIdField, z.ZodOptional<z.ZodString>> & Record<TKeyField, z.ZodOptional<z.ZodString>> {
   return {
-    [idField]: z.string().uuid().optional(),
-    [keyField]: z.string().min(1).optional(),
+    [idField]: z.string().uuid().describe(`UUID; prefer ${keyField} if known.`).optional(),
+    [keyField]: z.string().min(1).describe(`Natural key; prefer over ${idField}.`).optional(),
   } as Record<TIdField, z.ZodOptional<z.ZodString>> & Record<TKeyField, z.ZodOptional<z.ZodString>>;
 }
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { orgCode, uuidRef } from '@/platform/fields';
 import { departments } from '../schema';
 import { MAX_DEPARTMENT_DEPTH, resolveDepth } from '../service/department-tree';
 
@@ -23,9 +24,9 @@ export const createDepartmentAction = defineAction({
   title: 'Create department',
   input: z
     .object({
-      code: z.string().min(1),
+      code: orgCode(),
       name: z.string().min(1),
-      parentId: z.string().uuid().nullable().optional(),
+      parentId: uuidRef('parent department').nullable().optional(),
     })
     .strict(),
   output: z.object({

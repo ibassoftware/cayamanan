@@ -41,7 +41,7 @@ export const updateLocationAction = defineAction({
       ...idOrKeyShape('id', 'code'),
       name: z.string().min(1).optional(),
       address: z.string().nullable().optional(),
-      timezone: z.string().min(1).optional(),
+      timezone: z.string().min(1).describe('IANA timezone, e.g. "Asia/Manila".').optional(),
       isActive: z.boolean().optional(),
     })
     .strict()

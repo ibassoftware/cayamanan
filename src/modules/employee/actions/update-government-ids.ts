@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
+import { hdmfMid as hdmfMidField, pagibigNo as pagibigNoField, philhealthNo, sssNo as sssNoField, tin as tinField } from '@/platform/fields';
 import { employeeGovernmentIds } from '../schema';
 import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../service/employee-selector';
 
@@ -18,11 +19,11 @@ import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../
 const inputSchema = z
   .object({
     ...employeeIdOrNoShape,
-    sssNo: z.string().nullable().optional(),
-    philhealthNo: z.string().nullable().optional(),
-    pagibigNo: z.string().nullable().optional(),
-    tin: z.string().nullable().optional(),
-    hdmfMid: z.string().nullable().optional(),
+    sssNo: sssNoField().nullable().optional(),
+    philhealthNo: philhealthNo().nullable().optional(),
+    pagibigNo: pagibigNoField().nullable().optional(),
+    tin: tinField().nullable().optional(),
+    hdmfMid: hdmfMidField().nullable().optional(),
   })
   .strict()
   .superRefine(requireEmployeeIdOrNo);

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { orgCode } from '@/platform/fields';
 import { locations } from '../schema';
 
 const UNIQUE_CODE_CONSTRAINT = 'locations_tenant_company_code_uidx';
@@ -22,10 +23,10 @@ export const createLocationAction = defineAction({
   title: 'Create location',
   input: z
     .object({
-      code: z.string().min(1),
+      code: orgCode(),
       name: z.string().min(1),
       address: z.string().optional(),
-      timezone: z.string().min(1).optional(),
+      timezone: z.string().min(1).describe('IANA timezone, e.g. "Asia/Manila" (default).').optional(),
     })
     .strict(),
   output: z.object({

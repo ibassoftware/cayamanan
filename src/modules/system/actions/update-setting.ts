@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { isoDate } from '@/platform/fields';
 import { redact } from '@/platform/redact';
 import { systemSettings } from '@/platform/schema/settings';
 
@@ -27,11 +28,11 @@ function isOpenRowConflict(error: unknown): boolean {
 }
 
 const inputSchema = z.object({
-  key: z.string().min(1),
-  value: z.unknown(),
+  key: z.string().min(1).describe("Setting's unique key name."),
+  value: z.unknown().describe('New value for this setting (any JSON).'),
   // Defaults to "today" (server time) if omitted — never client-trusted for anything
   // beyond a plain effective date.
-  effectiveFrom: z.string().date().optional(),
+  effectiveFrom: isoDate().describe('Date the new value takes effect; defaults to today.').optional(),
 });
 
 const outputSchema = z.object({

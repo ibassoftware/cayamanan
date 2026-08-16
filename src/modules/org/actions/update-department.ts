@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
 import { idOrKeyShape, requireIdOrKey, resolveByIdOrKey, type NaturalKeySelectorConfig } from '@/platform/id-or-key';
+import { uuidRef } from '@/platform/fields';
 import { departments } from '../schema';
 import { MAX_DEPARTMENT_DEPTH, recomputeSubtreeDepths, resolveDepth, wouldCreateCycle } from '../service/department-tree';
 
@@ -48,7 +49,7 @@ export const updateDepartmentAction = defineAction({
     .object({
       ...idOrKeyShape('id', 'code'),
       name: z.string().min(1).optional(),
-      parentId: z.string().uuid().nullable().optional(),
+      parentId: uuidRef('parent department').nullable().optional(),
       isActive: z.boolean().optional(),
     })
     .strict()

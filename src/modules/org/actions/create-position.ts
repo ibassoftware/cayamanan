@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { orgCode } from '@/platform/fields';
 import { positions } from '../schema';
 
 const UNIQUE_CODE_CONSTRAINT = 'positions_tenant_company_code_uidx';
@@ -20,7 +21,7 @@ function isDuplicateCode(error: unknown): boolean {
 export const createPositionAction = defineAction({
   id: 'org.createPosition',
   title: 'Create position',
-  input: z.object({ code: z.string().min(1), title: z.string().min(1) }).strict(),
+  input: z.object({ code: orgCode(), title: z.string().min(1) }).strict(),
   output: z.object({ id: z.string().uuid(), code: z.string(), title: z.string(), isActive: z.boolean() }),
   read: false,
   risk: 'ordinary',

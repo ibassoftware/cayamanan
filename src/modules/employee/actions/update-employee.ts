@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
+import { isoDate, uuidRef } from '@/platform/fields';
 import { assertAssignmentInScope } from '../service/validate-assignment';
 import { employees } from '../schema';
 import { employeeIdOrNoShape, requireEmployeeIdOrNo, resolveEmployee } from '../service/employee-selector';
@@ -18,18 +19,18 @@ const inputSchema = z
     middleName: z.string().nullable().optional(),
     lastName: z.string().min(1).optional(),
     suffix: z.string().nullable().optional(),
-    birthDate: z.string().date().nullable().optional(),
+    birthDate: isoDate().nullable().optional(),
     sex: z.string().nullable().optional(),
     civilStatus: z.string().nullable().optional(),
     emailPersonal: z.string().email().nullable().optional(),
     emailWork: z.string().email().nullable().optional(),
     mobile: z.string().nullable().optional(),
     address: z.record(z.string(), z.unknown()).nullable().optional(),
-    hireDate: z.string().date().optional(),
+    hireDate: isoDate().optional(),
     photoUrl: z.string().nullable().optional(),
-    departmentId: z.string().uuid().nullable().optional(),
-    positionId: z.string().uuid().nullable().optional(),
-    locationId: z.string().uuid().nullable().optional(),
+    departmentId: uuidRef('department').nullable().optional(),
+    positionId: uuidRef('position').nullable().optional(),
+    locationId: uuidRef('location').nullable().optional(),
   })
   .strict()
   .superRefine(requireEmployeeIdOrNo);

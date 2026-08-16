@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
+import { uuidRef } from '@/platform/fields';
 import { employees } from '../schema';
 
 // Deliberately excludes birth_date/sex/civil_status/email*/mobile/address and never
@@ -35,9 +36,9 @@ export const listEmployeesAction = defineAction({
     .object({
       search: z.string().optional(),
       status: z.enum(['ACTIVE', 'ON_LEAVE', 'SEPARATED']).optional(),
-      departmentId: z.string().uuid().optional(),
-      positionId: z.string().uuid().optional(),
-      locationId: z.string().uuid().optional(),
+      departmentId: uuidRef('department').optional(),
+      positionId: uuidRef('position').optional(),
+      locationId: uuidRef('location').optional(),
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
       offset: z.number().int().min(0).optional(),
     })

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { ActionError } from '@/platform/errors';
+import { employeeNo as employeeNoField, isoDate, uuidRef } from '@/platform/fields';
 import { assertAssignmentInScope } from '../service/validate-assignment';
 import { employees } from '../schema';
 
@@ -21,23 +22,23 @@ function isDuplicateEmployeeNo(error: unknown): boolean {
 
 const inputSchema = z
   .object({
-    employeeNo: z.string().min(1),
+    employeeNo: employeeNoField(),
     firstName: z.string().min(1),
     middleName: z.string().optional(),
     lastName: z.string().min(1),
     suffix: z.string().optional(),
-    birthDate: z.string().date().optional(),
+    birthDate: isoDate().optional(),
     sex: z.string().optional(),
     civilStatus: z.string().optional(),
     emailPersonal: z.string().email().optional(),
     emailWork: z.string().email().optional(),
     mobile: z.string().optional(),
     address: z.record(z.string(), z.unknown()).optional(),
-    hireDate: z.string().date(),
+    hireDate: isoDate(),
     photoUrl: z.string().optional(),
-    departmentId: z.string().uuid().optional(),
-    positionId: z.string().uuid().optional(),
-    locationId: z.string().uuid().optional(),
+    departmentId: uuidRef('department').optional(),
+    positionId: uuidRef('position').optional(),
+    locationId: uuidRef('location').optional(),
   })
   .strict();
 
