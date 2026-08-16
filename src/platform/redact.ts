@@ -2,7 +2,26 @@
 // logged. Matches case-insensitively; `bank*`, `sss*`, `philhealth*`, `pagibig*`,
 // `password*` match by prefix (e.g. `bankAccountNumber`, `sss_number`, `passwordHash`),
 // the rest match the whole key name.
-const EXACT_KEYS = new Set(['salary', 'rate', 'tin', 'birthdate', 'address', 'email']);
+// `apikey`/`openaiapikey` cover the OpenAI key resolved per-request into Mastra's
+// `RequestContext` (src/mastra/agents/missy-agent.ts) — that context's own
+// `serializeForSpan()` only hard-codes redaction of Mastra's own auth-token key, so an
+// arbitrary string value we `.set()` on it (like this one) is otherwise passed through
+// as-is to any observability span that ever records the full context. Listed here so it
+// flows into Mastra's `SensitiveDataFilter` too (src/mastra/index.ts spreads
+// `SENSITIVE_KEY_VOCABULARY` into `sensitiveFields`), which matches whole normalized
+// keys only — see the leak-check note in the task report for why this is defence in
+// depth rather than the primary guard (the resolved model config itself is excluded
+// from span serialization by Mastra's own `ModelRouterLanguageModel.serializeForSpan`).
+const EXACT_KEYS = new Set([
+  'salary',
+  'rate',
+  'tin',
+  'birthdate',
+  'address',
+  'email',
+  'apikey',
+  'openaiapikey',
+]);
 // `hdmf` covers `hdmfMid`, `mobile` covers `mobile`/`mobileNumber` — both are
 // employee PII (employee_government_ids.hdmf_mid, employees.mobile,
 // employee_contacts.mobile) and neither matched any entry before.

@@ -80,6 +80,11 @@ export interface MissyRequestContext {
    * route couldn't determine one. Read by the dynamic `tools` builder below to scope
    * Missy's toolset (`src/mastra/tools/action-tool-bridge.ts`). */
   screenModule: string | null;
+  /** The caller's company-scoped OpenAI key (src/modules/system/service/resolve-openai-key.ts),
+   * set by the chat route once per request — never client-supplied. Absent when neither a
+   * settings-stored key nor `OPENAI_API_KEY` resolves; the `model` resolver below falls
+   * back to the plain model string in that case. */
+  openaiApiKey?: string;
 }
 
 // Reasoning model on OpenAI's Responses API — see reasoningReplayGuard for the
@@ -158,7 +163,20 @@ export const missyAgent = new Agent({
   id: 'missy',
   name: 'Missy',
   instructions: MISSY_INSTRUCTIONS,
-  model: MISSY_MODEL,
+  // Dynamic, evaluated fresh per request (`Agent.model` accepts a resolver function —
+  // @mastra/core's `DynamicArgument<MastraModelConfig>`): an admin-configured OpenAI key
+  // (src/modules/system/actions/set-openai-key.ts, resolved per-tenant/company by
+  // src/modules/system/service/resolve-openai-key.ts) takes precedence over the
+  // gateway's own env lookup when present. Building a *fresh* `ModelRouterLanguageModel`
+  // per call this way is race-free across concurrent requests from different
+  // tenants/companies — there is no shared mutable model instance or `process.env`
+  // write to race on. Falls back to the plain model string (the previous behavior) when
+  // no key resolves for this request, so local dev / the test suite (which rely on
+  // `OPENAI_API_KEY`) are unaffected.
+  model: ({ requestContext }) => {
+    const apiKey = requestContext.get('openaiApiKey') as string | undefined;
+    return apiKey ? { id: MISSY_MODEL, apiKey } : MISSY_MODEL;
+  },
   // Dynamic: resolved fresh per request from the caller's own verified session (set as
   // requestContext by the chat route, never from client-supplied body data — see
   // src/app/api/chat/route.ts) so the toolset always reflects the current role

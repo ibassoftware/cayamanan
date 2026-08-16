@@ -23,6 +23,7 @@ import { resolveSessionFromCookie } from '@/modules/identity/service/session';
 import { getOwnedThread, touchThread } from '@/modules/ai/service/threads';
 import { MISSY_PROVIDER_OPTIONS, resolveMissyModelSettings, type MissyRequestContext } from '@/mastra/agents/missy-agent';
 import { extractScreenModule } from '@/lib/chat/screen-context';
+import { resolveOpenAiKey } from '@/modules/system/service/resolve-openai-key';
 
 const AGENT_ID = 'missy';
 
@@ -46,7 +47,12 @@ async function resolveSession(request: NextRequest) {
  * documented mechanism (see @mastra/core's request-context module) for preventing one
  * user's chat request from ever reaching another user's memory.
  */
-function buildRequestContext(session: VerifiedSession, threadId: string, screenModule: string | null): RequestContext {
+function buildRequestContext(
+  session: VerifiedSession,
+  threadId: string,
+  screenModule: string | null,
+  openaiApiKey: string | undefined,
+): RequestContext {
   // Untyped (not `RequestContext<MissyRequestContext>`): besides the keys the tool
   // builder reads (`session`, `threadId`, `screenModule` — see MissyRequestContext), this
   // also needs to carry Mastra's own reserved keys below, which aren't part of that
@@ -55,6 +61,12 @@ function buildRequestContext(session: VerifiedSession, threadId: string, screenM
   requestContext.set('session' satisfies keyof MissyRequestContext, session);
   requestContext.set('threadId' satisfies keyof MissyRequestContext, threadId);
   requestContext.set('screenModule' satisfies keyof MissyRequestContext, screenModule);
+  // Company-scoped, server-resolved (see resolveOpenAiKey) — never from client body data.
+  // Omitted entirely (not set to undefined) when nothing resolves, so missy-agent.ts's
+  // model resolver falls back to the plain model string.
+  if (openaiApiKey) {
+    requestContext.set('openaiApiKey' satisfies keyof MissyRequestContext, openaiApiKey);
+  }
   requestContext.set(MASTRA_RESOURCE_ID_KEY, session.userId);
   requestContext.set(MASTRA_THREAD_ID_KEY, threadId);
   return requestContext;
@@ -115,6 +127,8 @@ export async function POST(request: NextRequest) {
     threadId = (created.data as { id: string }).id;
   }
 
+  const openaiApiKey = await resolveOpenAiKey({ tenantId: session.tenantId, companyId: session.companyId });
+
   const stream = await handleChatStream({
     mastra,
     agentId: AGENT_ID,
@@ -128,7 +142,7 @@ export async function POST(request: NextRequest) {
       memory: { thread: threadId, resource: session.userId },
     },
     defaultOptions: {
-      requestContext: buildRequestContext(session, threadId, extractLatestScreenModule(rest.messages)),
+      requestContext: buildRequestContext(session, threadId, extractLatestScreenModule(rest.messages), openaiApiKey),
       // Reasoning effort and summary are execution options in Mastra, not Agent config —
       // see resolveMissyModelSettings / MISSY_PROVIDER_OPTIONS for what each one buys.
       // Effort is resolved per request from this request's own message array (the
@@ -145,7 +159,14 @@ export async function POST(request: NextRequest) {
   // load-bearing when the client didn't send a threadId (a brand-new conversation), so it
   // can persist the server-generated id for the next message and for a reload
   // (acceptance criterion 1).
-  return createUIMessageStreamResponse({ stream, headers: { 'X-Missy-Thread-Id': threadId } });
+  // `X-Accel-Buffering: no`: a proxy that buffers this response would hold the small text
+  // deltas back after the fat reasoning chunks have already flushed — the turn renders its
+  // reasoning, then appears to hang with the answer stuck in a buffer that never refills.
+  // Harmless where nothing buffers; the header is simply ignored.
+  return createUIMessageStreamResponse({
+    stream,
+    headers: { 'X-Missy-Thread-Id': threadId, 'X-Accel-Buffering': 'no' },
+  });
 }
 
 export async function GET(request: NextRequest) {

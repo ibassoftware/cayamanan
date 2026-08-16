@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { defineAction } from '@/platform/actions';
 import { systemSettings } from '@/platform/schema/settings';
+import { RESERVED_SETTING_KEYS } from '@/modules/system/service/settings-store';
 
 const settingSchema = z.object({
   key: z.string(),
@@ -38,6 +39,9 @@ export const getSettingsAction = defineAction({
         ),
       );
 
-    return { settings: rows };
+    // Reserved keys (the encrypted OpenAI key) have their own status action
+    // (`system.getOpenAiKeyStatus`) and must never render as raw ciphertext in the
+    // generic settings list/edit form — see settings-store.ts's RESERVED_SETTING_KEYS.
+    return { settings: rows.filter((row) => !RESERVED_SETTING_KEYS.has(row.key)) };
   },
 });

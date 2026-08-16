@@ -5,3 +5,5 @@
 import './ping';
 import './get-settings';
 import './update-setting';
+import './set-openai-key';
+import './get-openai-key-status';

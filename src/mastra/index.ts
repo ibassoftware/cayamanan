@@ -7,6 +7,7 @@ import { createClient } from 'redis';
 import { weatherWorkflow } from './workflows/weather-workflow';
 import { weatherAgent } from './agents/weather-agent';
 import { missyAgent } from './agents/missy-agent';
+import { columnMappingAgent } from './agents/column-mapping-agent';
 import { piiTextRedactionProcessor } from './observability/pii-text-redaction-processor';
 import { SENSITIVE_KEY_VOCABULARY } from '@/platform/redact';
 
@@ -36,7 +37,7 @@ void redis.connect().catch((error: Error) => {
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
-  agents: { weatherAgent, missyAgent },
+  agents: { weatherAgent, missyAgent, columnMappingAgent },
   storage,
   // `nodeRedisPreset` maps the cache's command calls onto node-redis' camelCase
   // API. The cast is needed because @mastra/redis types `RedisClient` against the

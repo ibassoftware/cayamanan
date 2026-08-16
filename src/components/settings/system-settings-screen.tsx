@@ -21,6 +21,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { callAction } from "@/lib/actions-client"
 import { SettingForm } from "@/components/settings/setting-form"
+import { OpenAiKeyCard } from "@/components/settings/openai-key-card"
 import {
   deriveSettingsScreenState,
   formatSettingValue,
@@ -85,6 +86,8 @@ export function SystemSettingsScreen() {
           <Button onClick={() => setDialogState({ mode: "create" })}>Add setting</Button>
         )}
       </div>
+
+      <OpenAiKeyCard />
 
       {state.status === "loading" && (
         <Card className="max-w-xl">

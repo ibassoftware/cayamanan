@@ -80,3 +80,55 @@ export const aiToolInvocations = pgTable(
     index('ai_tool_invocations_action_id_idx').on(table.actionId),
   ],
 );
+
+// Server-side staging for a file attached in the Missy composer (`ai.createAttachment` /
+// `ai.listAttachments` / `service/attachments.ts`'s `getAttachmentContent`) — the file is
+// referred to by `id` in the conversation; the model is told a filename, a byte size and
+// a row count, never `content`. Employee CSV imports must stay on the deterministic
+// parser (`src/modules/employee/service/csv.ts`), the same principle CLAUDE.md applies to
+// payroll amounts, so this table exists precisely so the model never has to see the rows.
+//
+// This table holds unredacted employee PII pasted in by a user — treat every row as
+// PII-class data: readable only by its own `userId`, and short-lived. `expiresAt` is a
+// 1-hour TTL (`ai.createAttachment`'s handler); there is no scheduler/cron in this app, so
+// expired rows are only ever reaped opportunistically, from `deleteExpiredAttachments`
+// (`service/attachments.ts`), called at the top of every `ai.createAttachment` call —
+// never a background job.
+export const chatAttachments = pgTable(
+  'chat_attachments',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    tenantId: uuid('tenant_id').notNull(),
+    companyId: uuid('company_id').notNull(),
+    // Owner of this staged file — every read (list, content resolution) is additionally
+    // filtered to this column in application code, since RLS below only knows about
+    // tenant_id/company_id, not per-row ownership.
+    userId: uuid('user_id').notNull(),
+    // Set once the attachment is actually sent as part of a message, for a possible future
+    // "attachments in this thread" view — nullable because a file can be staged (picked in
+    // the composer) before any thread exists yet. Not queried by anything in this slice.
+    threadId: uuid('thread_id'),
+    // Display label only, sanitized at upload time (service/attachments.ts) — never used
+    // as a filesystem path.
+    filename: text('filename').notNull(),
+    // Derived from the filename's extension at upload time (service/attachments.ts) —
+    // never a client-declared value; only .csv/.tsv/.txt are ever accepted.
+    mimeType: text('mime_type').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    // CSV/TSV/plain text only, so a plain `text` column is enough — no need for the
+    // `bytea` this domain would need for arbitrary binary content (contrast
+    // employee_documents.content in src/modules/employee/schema.ts).
+    content: text('content').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by'),
+    updatedBy: uuid('updated_by'),
+  },
+  (table) => [
+    index('chat_attachments_tenant_company_user_idx').on(table.tenantId, table.companyId, table.userId),
+    // Backs the opportunistic `deleteExpiredAttachments` sweep — every row past its TTL,
+    // regardless of owner, in a single scan rather than a full table scan.
+    index('chat_attachments_expires_at_idx').on(table.expiresAt),
+  ],
+);

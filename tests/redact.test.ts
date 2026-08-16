@@ -46,6 +46,13 @@ describe('redact', () => {
   it('redacts an "email" key directly', () => {
     expect(redact({ email: 'jane.doe@example.com' })).toEqual({ email: '[REDACTED]' });
   });
+
+  it('redacts an OpenAI API key by key name, case-insensitively', () => {
+    expect(redact({ apiKey: 'sk-abc123', openaiApiKey: 'sk-def456' })).toEqual({
+      apiKey: '[REDACTED]',
+      openaiApiKey: '[REDACTED]',
+    });
+  });
 });
 
 describe('redact — employee government-ID and contact PII', () => {

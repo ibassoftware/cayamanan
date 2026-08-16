@@ -6,3 +6,6 @@ import './list-threads';
 import './create-thread';
 import './rename-thread';
 import './approve-action';
+import './create-attachment';
+import './list-attachments';
+import './get-attachment';
