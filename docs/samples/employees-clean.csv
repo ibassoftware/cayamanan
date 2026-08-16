@@ -1,0 +1,6 @@
+employeeNo,firstName,middleName,lastName,hireDate,sex,civilStatus,mobile,emailPersonal,biometricId
+EMP-2001,Jose,Protacio,Rizal,2025-01-06,MALE,SINGLE,09171112222,jose.rizal@example.com,BIO-2001
+EMP-2002,Andres,Bonifacio,de Castro,2025-02-17,MALE,MARRIED,09171113333,andres.b@example.com,BIO-2002
+EMP-2003,Gabriela,Cariño,Silang,2025-03-03,FEMALE,MARRIED,09171114444,gabriela.s@example.com,BIO-2003
+EMP-2004,Apolinario,,Mabini,2025-04-21,MALE,SINGLE,09171115555,apolinario.m@example.com,
+EMP-2005,Melchora,Aquino,de Ramos,2025-05-12,FEMALE,WIDOWED,09171116666,melchora.a@example.com,BIO-2005

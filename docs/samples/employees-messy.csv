@@ -1,0 +1,6 @@
+Emp No.,Given Name,Middle,Surname,Date Hired,Gender,Status,Contact No,E-mail,Biometrics ID
+EMP-3001,Juan,Santos,Dela Cruz,2025-06-01,MALE,SINGLE,09181112222,juan.dc@example.com,BIO-3001
+EMP-3002,,Reyes,Bautista,2025-06-15,FEMALE,SINGLE,09181113333,r.bautista@example.com,BIO-3002
+EMP-3003,Pedro,Cruz,Penduko,15/07/2025,MALE,SINGLE,09181114444,pedro.p@example.com,BIO-3003
+EMP-3001,Duplicate,Of,Row Two,2025-08-01,MALE,SINGLE,09181115555,dupe@example.com,BIO-3005
+EMP-3005,Ligaya,Mendoza,Torres,,FEMALE,MARRIED,09181116666,not-an-email,BIO-3001
