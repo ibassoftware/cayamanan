@@ -18,6 +18,7 @@ import { getToolName } from "ai"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool"
 import { ConfirmationCard } from "@/components/chat/confirmation-card"
+import { humanizeToolName } from "@/lib/chat/tool-label"
 import { normalizeToolName, parseToolResult, toApprovalInput } from "@/lib/chat/tool-result"
 
 const overlineClass = "block font-medium text-body-subtle text-xs uppercase tracking-[0.1em]"
@@ -43,9 +44,18 @@ export function ToolCallCard({ part }: { part: ToolUIPart | DynamicToolUIPart })
       ? ({ type: "dynamic-tool" as const, state: part.state, toolName })
       : ({ type: part.type, state: part.state })
 
+  // Routine successes collapse: Missy already narrates what she did in prose, so the raw
+  // parameters and result are detail-on-demand rather than the default view. Anything the
+  // user must act on or know about stays open — a confirmation card holds the Approve
+  // button, and a permission/error card is the only signal that something did not happen.
+  const needsAttention =
+    part.state === "output-error" ||
+    (part.state === "output-available" &&
+      (!toolResult || toolResult.status === "error" || toolResult.status === "confirmation_required"))
+
   return (
-    <Tool defaultOpen>
-      <ToolHeader {...headerProps} title={toolName} />
+    <Tool defaultOpen={needsAttention}>
+      <ToolHeader {...headerProps} title={humanizeToolName(toolName)} />
       <ToolContent>
         {/* `input` is undefined while the model is still streaming the tool call's
             arguments (state 'input-streaming'). ToolInput renders it through CodeBlock,
