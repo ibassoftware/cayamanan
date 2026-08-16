@@ -45,12 +45,24 @@ Next.js 16 (App Router, Turbopack, TS, Tailwind v4, `src/`) · Mastra agents · 
 | lint | `npm run lint` |
 | migrations | `npm run db:generate` → `npm run db:migrate` · seed: `npm run db:seed` |
 
-Layout: `src/platform/` (db, actions registry, money, errors, audit, effective-dating) · `src/modules/<domain>/` (schema + actions) · `src/app/app/` (the ERP shell) · `src/mastra/` (agents) · `drizzle/` (migrations) · `tests/`.
+Layout: `src/platform/` (db, actions registry, money, errors, audit, effective-dating) · `src/modules/<domain>/` (schema + actions; `identity`, `org`, `employee`, `ai`, `ui`, `system`) · `src/app/app/` (the ERP shell) · `src/components/data/` (shared list/form/typeahead primitives) · `src/components/chat/` (Missy panel) · `src/mastra/` (agent, tool bridge, processors) · `drizzle/` · `tests/`.
+
+**Status:** slices 01–04 are done (foundation, identity/auth, Missy substrate, org + employee master data). Next is 05. Plans for all 14 slices live in `docs/plan/` — local-only, deliberately not committed.
 
 **Non-obvious rules**
-- Never import `getBootstrapDb` or build a raw pool inside `src/modules/**` — it connects as superuser and bypasses RLS. Use `withTenantContext`; ESLint enforces this by import.
-- All DB access runs inside a tenant-scoped transaction. RLS is `FORCE`d and fails closed: no context ⇒ zero rows. Cross-company reads require the explicit `crossCompanyReporting` option.
-- `pg` returns `numeric` as a **string** — that is deliberate. Never `parseFloat` it; use `Money`.
+- Never import `getBootstrapDb` or build a raw pool inside `src/modules/**` — it connects as superuser and bypasses RLS. Use `withTenantContext`; ESLint enforces this **by import**, so renaming the variable does not defeat it.
+- All DB access runs inside a tenant-scoped transaction. RLS is `FORCE`d and fails closed: no context ⇒ zero rows. Company policies are `RESTRICTIVE` — a second *permissive* policy would be a silent no-op, since Postgres ORs them. Cross-company reads require the explicit `crossCompanyReporting` option.
+- `pg` returns `numeric` as a **string** — deliberate. Never `parseFloat` it; use `Money`, which has no float entry point at all.
 - Design system is TypeUI **Terracotta, light only**. No dark mode, no theme toggle.
+- `ctx.audit()` persists at **any** risk level; `risk: 'high'` additionally *requires* it (a high-risk handler that returns without auditing rolls back). Audit anything whose prior value cannot be recovered from the row itself.
+- Adding a Missy tool means adding an action with `toolExposed: true` — never touch chat plumbing. Tool exposure is UX only; `executeAction`'s role check is the real boundary, so a hallucinated tool name still hits a genuine `FORBIDDEN`.
+- Tool-exposed `risk: 'high'` actions must define `confirmationPreview`. The preview is **display only** — approval resubmits the tool call's real input, because the preview is redacted and would fail the input hash.
 
-Plans for all 14 slices live in `docs/plan/` (local-only, not committed). Keep this file small; detailed docs belong in `docs/`.
+**Known landmines** (each cost real debugging time — see git history for the fix)
+- OpenAI's structured tool-calling sends optional fields as `null`, not omitted. `ai.approveAction` normalises this schema-aware; a blanket null-strip would silently widen an action.
+- Reasoning models on the Responses API reject replayed history unless the provider item id is stripped too — dropping the reasoning part alone is not enough (`reasoningReplayGuard`).
+- Mastra's `sendReasoning` and reasoning effort/summary are **execution** options (`defaultOptions`), not Agent config.
+- Mastra does not compact or summarise context; it truncates to `lastMessages`. Raising it is the only lever until semantic recall lands.
+- Mastra's own `mastra_*` memory tables are **not** covered by our RLS. Thread ownership is enforced in application code before any memory call. Deferred post-MVP — do not assume the database will catch a mistake there.
+
+Keep this file small; detailed docs belong in `docs/`.
