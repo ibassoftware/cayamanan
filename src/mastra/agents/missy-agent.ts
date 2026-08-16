@@ -47,6 +47,32 @@ export interface MissyRequestContext {
 // inputProcessor (not a model change) is the fix.
 const MISSY_MODEL = 'openai/gpt-5.6-luna';
 
+/**
+ * How hard Luna thinks before answering. OpenAI accepts
+ * none | minimal | low | medium | high | xhigh | max; leaving it unset uses the provider
+ * default, which is what we were doing.
+ *
+ * `low` is the deliberate default here. Missy's job is to pick the right action, call it,
+ * and narrate the result faithfully — the deterministic engine does the actual work, and
+ * CLAUDE.md forbids her from computing payroll amounts at all. Extra reasoning tokens buy
+ * very little on a "list the positions" or "create this department" turn, and cost latency
+ * on every one of them. Raise it if she starts choosing tools badly, not pre-emptively.
+ */
+const MISSY_REASONING_EFFORT = (process.env.MISSY_REASONING_EFFORT ??
+  'low') as 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+/**
+ * Applied per request by the chat route (`defaultOptions`) — Mastra takes these on the
+ * execution call, not on the Agent constructor.
+ *
+ * `reasoning` is Mastra's provider-agnostic effort level, so it survives a provider swap.
+ * `reasoningSummary: 'auto'` is OpenAI-specific and asks for a readable summary of the
+ * thinking: without it, reasoning parts arrive with an empty text body and only
+ * `reasoningEncryptedContent`, leaving the UI nothing it could ever display.
+ */
+export const MISSY_MODEL_SETTINGS = { reasoning: MISSY_REASONING_EFFORT } as const;
+export const MISSY_PROVIDER_OPTIONS = { openai: { reasoningSummary: 'auto' } } as const;
+
 export const missyAgent = new Agent({
   id: 'missy',
   name: 'Missy',
@@ -62,5 +88,18 @@ export const missyAgent = new Agent({
     return buildActionTools(session, threadId);
   },
   inputProcessors: [reasoningReplayGuard],
-  memory: new Memory(),
+  memory: new Memory({
+    options: {
+      // Default was 10, which is a cliff rather than a taper: Missy silently forgot the
+      // start of any multi-step task ("create the employee… now set their IDs… now link
+      // their account"). Luna's context window is ~1.05M tokens, so 40 turns is still
+      // conservative — and Mastra does not summarise or compact, it simply truncates.
+      lastMessages: 40,
+      // Durable facts (which employee we are working on) survive past that window.
+      // Resource-scoped so they follow the user across threads, not just this one.
+      workingMemory: { enabled: true, scope: 'resource' },
+      // Otherwise the thread list is a column of untitled conversations.
+      generateTitle: true,
+    },
+  }),
 });

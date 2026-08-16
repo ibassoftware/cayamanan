@@ -11,7 +11,7 @@
 // always renders a readable card (03-missy-foundation.md criterion 6), never silence.
 import { AlertTriangleIcon, LockIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import type { DynamicToolUIPart, ToolUIPart } from "ai"
 import { getToolName } from "ai"
 
@@ -25,6 +25,7 @@ const overlineClass = "block font-medium text-body-subtle text-xs uppercase trac
 
 export function ToolCallCard({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
   const router = useRouter()
+  const [userToggled, setUserToggled] = useState<boolean | null>(null)
   const toolName = normalizeToolName(getToolName(part))
   const toolResult = part.state === "output-available" ? parseToolResult(part.output) : null
 
@@ -53,8 +54,15 @@ export function ToolCallCard({ part }: { part: ToolUIPart | DynamicToolUIPart })
     (part.state === "output-available" &&
       (!toolResult || toolResult.status === "error" || toolResult.status === "confirmation_required"))
 
+  // Controlled, not `defaultOpen`: `needsAttention` is false while the call streams and
+  // only becomes true once an error/confirmation result arrives, i.e. after mount — and
+  // changing an uncontrolled Collapsible's default state after initialization is a Base UI
+  // warning. `null` means "not touched", so the card follows needsAttention until the user
+  // expresses a preference, and respects it afterwards.
+  const open = userToggled ?? needsAttention
+
   return (
-    <Tool defaultOpen={needsAttention}>
+    <Tool open={open} onOpenChange={setUserToggled}>
       <ToolHeader {...headerProps} title={humanizeToolName(toolName)} />
       <ToolContent>
         {/* `input` is undefined while the model is still streaming the tool call's

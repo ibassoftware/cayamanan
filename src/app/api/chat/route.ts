@@ -21,7 +21,7 @@ import { executeAction, type VerifiedSession } from '@/platform/actions';
 import { SESSION_COOKIE_NAME } from '@/modules/identity/service/cookie';
 import { resolveSessionFromCookie } from '@/modules/identity/service/session';
 import { getOwnedThread, touchThread } from '@/modules/ai/service/threads';
-import type { MissyRequestContext } from '@/mastra/agents/missy-agent';
+import { MISSY_MODEL_SETTINGS, MISSY_PROVIDER_OPTIONS, type MissyRequestContext } from '@/mastra/agents/missy-agent';
 
 const AGENT_ID = 'missy';
 
@@ -100,12 +100,20 @@ export async function POST(request: NextRequest) {
     mastra,
     agentId: AGENT_ID,
     version: 'v6',
+    // Defaults to false, which silently drops every reasoning part before it reaches the
+    // client — the summaries requested via MISSY_PROVIDER_OPTIONS would be produced and
+    // stored, but never displayable. The panel renders them collapsed.
+    sendReasoning: true,
     params: {
       ...rest,
       memory: { thread: threadId, resource: session.userId },
     },
     defaultOptions: {
       requestContext: buildRequestContext(session, threadId),
+      // Reasoning effort and summary are execution options in Mastra, not Agent config —
+      // see MISSY_MODEL_SETTINGS / MISSY_PROVIDER_OPTIONS for what each one buys.
+      modelSettings: MISSY_MODEL_SETTINGS,
+      providerOptions: MISSY_PROVIDER_OPTIONS,
     },
   });
 
