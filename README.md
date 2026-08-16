@@ -1,6 +1,6 @@
 <div align="center">
 
-# Cayamanan
+<img src="public/cayamanan-logo.png" alt="Cayamanan HRIS" width="520">
 
 **An AI-first HRIS and payroll platform for Philippine businesses — free to run.**
 
