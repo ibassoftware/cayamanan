@@ -2,18 +2,20 @@
 
 import type { UIMessage } from "ai"
 import { isDynamicToolUIPart, isToolUIPart } from "ai"
+import type { ReactNode } from "react"
 
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning"
 import { ToolCallCard } from "@/components/chat/tool-call-card"
 import { isInternalToolPart } from "@/lib/chat/internal-tools"
+import { MissyAvatar } from "@/components/missy/missy-avatar"
 
 
 
 export function ChatMessage({ message }: { message: UIMessage }) {
   return (
     <Message from={message.role}>
-      <MessageContent>
+      <MessageRow role={message.role}>
         {message.parts.map((part, index) => {
           if (part.type === "text") {
             return (
@@ -43,7 +45,23 @@ export function ChatMessage({ message }: { message: UIMessage }) {
           }
           return null
         })}
-      </MessageContent>
+      </MessageRow>
     </Message>
+  )
+}
+
+/**
+ * Her turns get her face; the user's do not. Keeps the two sides of the transcript
+ * distinguishable at a glance in a column that is often only ~320px wide, which the role
+ * styling alone does less work for than it does in a full-width chat.
+ */
+function MessageRow({ role, children }: { role: UIMessage["role"]; children: ReactNode }) {
+  if (role !== "assistant") return <MessageContent>{children}</MessageContent>
+
+  return (
+    <div className="flex w-full gap-2">
+      <MissyAvatar className="mt-1 size-5 shrink-0" />
+      <MessageContent>{children}</MessageContent>
+    </div>
   )
 }

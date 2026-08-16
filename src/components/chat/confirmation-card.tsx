@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { callAction } from "@/lib/actions-client"
 import { formatCountdown, isConfirmationExpired, secondsUntilExpiry } from "@/lib/chat/confirmation"
 import { CodeBlock } from "@/components/ai-elements/code-block"
+import { MissyAvatar } from "@/components/missy/missy-avatar"
 
 export interface ConfirmationCardProps {
   confirmationId: string
@@ -86,7 +87,12 @@ export function ConfirmationCard({ confirmationId, token, title, preview, input,
       aria-label={`Confirmation required: ${title}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="font-medium text-heading text-sm">{title}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          {/* She is holding this out to you: the raised brow is the character half of the
+              "Missy proposes, you decide" boundary the confirmation flow enforces for real. */}
+          <MissyAvatar className="size-6 shrink-0" state="awaiting-approval" />
+          <p className="min-w-0 font-medium text-heading text-sm">{title}</p>
+        </div>
         {state.kind === "pending" && (
           <Badge variant={expired ? "destructive" : "warning"} className="gap-1.5 rounded-full">
             <ClockIcon className="size-3" aria-hidden="true" />
