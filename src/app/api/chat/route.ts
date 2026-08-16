@@ -22,6 +22,7 @@ import { SESSION_COOKIE_NAME } from '@/modules/identity/service/cookie';
 import { resolveSessionFromCookie } from '@/modules/identity/service/session';
 import { getOwnedThread, touchThread } from '@/modules/ai/service/threads';
 import { MISSY_PROVIDER_OPTIONS, resolveMissyModelSettings, type MissyRequestContext } from '@/mastra/agents/missy-agent';
+import { extractScreenModule } from '@/lib/chat/screen-context';
 
 const AGENT_ID = 'missy';
 
@@ -45,16 +46,34 @@ async function resolveSession(request: NextRequest) {
  * documented mechanism (see @mastra/core's request-context module) for preventing one
  * user's chat request from ever reaching another user's memory.
  */
-function buildRequestContext(session: VerifiedSession, threadId: string): RequestContext {
-  // Untyped (not `RequestContext<MissyRequestContext>`): besides the two keys the tool
-  // builder reads (`session`, `threadId` — see MissyRequestContext), this also needs to
-  // carry Mastra's own reserved keys below, which aren't part of that record type.
+function buildRequestContext(session: VerifiedSession, threadId: string, screenModule: string | null): RequestContext {
+  // Untyped (not `RequestContext<MissyRequestContext>`): besides the keys the tool
+  // builder reads (`session`, `threadId`, `screenModule` — see MissyRequestContext), this
+  // also needs to carry Mastra's own reserved keys below, which aren't part of that
+  // record type.
   const requestContext = new RequestContext();
   requestContext.set('session' satisfies keyof MissyRequestContext, session);
   requestContext.set('threadId' satisfies keyof MissyRequestContext, threadId);
+  requestContext.set('screenModule' satisfies keyof MissyRequestContext, screenModule);
   requestContext.set(MASTRA_RESOURCE_ID_KEY, session.userId);
   requestContext.set(MASTRA_THREAD_ID_KEY, threadId);
   return requestContext;
+}
+
+// Untrusted client input, same discipline as everything else in this route: only ever
+// used to widen/narrow Missy's tool selection (src/mastra/tools/action-tool-bridge.ts),
+// never anything session/tenant/authorization related. The screen-context provider
+// (src/lib/screen-context.tsx) attaches its `ScreenContext` as the *new* user message's
+// own `metadata` (src/components/chat/chat-provider.tsx's `sendChatMessage`), so the
+// latest user message in this request's own body is where it lives — never re-derived
+// from a prior turn, which could be stale by the time this request is handled.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- reads already-parsed request JSON, not a typed SDK object (see reasoning-effort.ts's LooseMessage for the same discipline).
+function extractLatestScreenModule(messages: any): string | null {
+  if (!Array.isArray(messages)) return null;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i]?.role === 'user') return extractScreenModule(messages[i]?.metadata);
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -109,7 +128,7 @@ export async function POST(request: NextRequest) {
       memory: { thread: threadId, resource: session.userId },
     },
     defaultOptions: {
-      requestContext: buildRequestContext(session, threadId),
+      requestContext: buildRequestContext(session, threadId, extractLatestScreenModule(rest.messages)),
       // Reasoning effort and summary are execution options in Mastra, not Agent config —
       // see resolveMissyModelSettings / MISSY_PROVIDER_OPTIONS for what each one buys.
       // Effort is resolved per request from this request's own message array (the
