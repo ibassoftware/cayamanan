@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import { deriveAnnouncement, extractMessageText } from "@/lib/chat/announcer"
 import { ChatMessage } from "@/components/chat/chat-message"
+import { isVisibleOutputPart } from "@/lib/chat/internal-tools"
 import { ChatResizeHandle } from "@/components/chat/chat-resize-handle"
 import { ThreadList } from "@/components/chat/thread-list"
 import { useMissyChat } from "@/components/chat/chat-provider"
@@ -133,7 +134,7 @@ function ChatPanelContent({ onCollapse }: { onCollapse: () => void }) {
   const lastMessage = messages[messages.length - 1]
   const assistantHasVisibleOutput =
     lastMessage?.role === "assistant" &&
-    lastMessage.parts.some((part) => part.type === "text" || part.type.startsWith("tool-"))
+    lastMessage.parts.some(isVisibleOutputPart)
   const isAwaitingFirstOutput =
     status === "submitted" || (status === "streaming" && !assistantHasVisibleOutput)
 
